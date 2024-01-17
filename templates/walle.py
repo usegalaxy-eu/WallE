@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# Keep your system clean!
 # A command line script that iterates over the currently running jobs and stops them as well as logs the user,
 # when a file in the JWD matches to a list of hashes
 
@@ -30,7 +31,7 @@ def convert_arg_to_seconds(hours: str) -> int:
 
 def make_parser() -> argparse.ArgumentParser:
     my_parser = argparse.ArgumentParser(
-        prog="Miner Finder",
+        prog="WALL·E",
         description="""
             Loads a yaml malware library with CRC32 and SHA1 hashes as arguments
             from the environment variable "MALWARE_LIB",
@@ -38,7 +39,7 @@ def make_parser() -> argparse.ArgumentParser:
             and reports jobs, users and malware details if specified.
             Malware library file has the following schema:
                 class:
-                    name:
+                    program:
                         version:
                             severity: [high, medium, low]
                             description: "optional info"
@@ -47,10 +48,13 @@ def make_parser() -> argparse.ArgumentParser:
                                 sha1: <checksum sha1, hex representation>
             WARNING:
             Be careful with how you generate the CRC32 hashes:
-            There are multiple algorithms, this script is using the one specified by IEEE 802.3
+            There are multiple algorithms, this script is using
+            the one specified by RFC in the GZIP specification.
             You should get this when using the gzip command on POSIX systems
             and convert it to integer representation.
-
+            e.g. with:
+            gzip -1 -c /path/to/file | tail -c8 | hexdump -n4 -e '"%u"'
+            
             The following ENVs (same as gxadmin's) should be set:
                 GALAXY_CONFIG_FILE: Path to the galaxy.yml file
                 GALAXY_LOG_DIR: Path to the Galaxy log directory
@@ -172,7 +176,7 @@ class Malware:
     def __init__(
         self,
         malware_class: str,
-        name: str,
+        program: str,
         version: str,
         severity: str,
         description: str,
@@ -180,7 +184,7 @@ class Malware:
         sha1: str,
     ) -> None:
         self.malware_class = malware_class
-        self.name = name
+        self.program = program
         self.version = version
         self.severity = severity
         self.description = description
@@ -197,9 +201,7 @@ def file_accessed_in_range(
     return True
 
 
-def file_in_size_range(
-    file_stat: os.stat_result, min_size=None, max_size=None
-) -> bool:
+def file_in_size_range(file_stat: os.stat_result, min_size=None, max_size=None) -> bool:
     if min_size is not None:
         if file_stat.st_size < min_size:
             return False
@@ -280,14 +282,12 @@ def scan_file_for_malware(
     return matches
 
 
-def report_matching_malware(
-    job: Job, malware: Malware, path: pathlib.Path
-) -> str:
+def report_matching_malware(job: Job, malware: Malware, path: pathlib.Path) -> str:
     """
     Create log line depending on verbosity
     """
     return f"{datetime.datetime.now()} {job.user_name} {job.galaxy_id} \
-{malware.malware_class} {malware.name} {malware.version} {path}"
+{malware.malware_class} {malware.program} {malware.version} {path}"
 
 
 def construct_malware_list(malware_yaml: dict) -> [Malware]:
@@ -297,25 +297,25 @@ def construct_malware_list(malware_yaml: dict) -> [Malware]:
     """
     malware_list = []
     for malware_class in malware_yaml:
-        for pkg in malware_yaml[malware_class]:
-            for version in malware_yaml[malware_class][pkg]:
+        for program in malware_yaml[malware_class]:
+            for version in malware_yaml[malware_class][program]:
                 malware_list.append(
                     Malware(
                         malware_class=malware_class,
-                        name=pkg,
+                        program=program,
                         version=version,
-                        severity=malware_yaml[malware_class][pkg][version][
+                        severity=malware_yaml[malware_class][program][version][
                             "severity"
                         ],
-                        description=malware_yaml[malware_class][pkg][version][
+                        description=malware_yaml[malware_class][program][version][
                             "description"
                         ],
-                        crc32=malware_yaml[malware_class][pkg][version][
+                        crc32=malware_yaml[malware_class][program][version][
                             "checksums"
                         ]["crc32"],
-                        sha1=malware_yaml[malware_class][pkg][version][
-                            "checksums"
-                        ]["sha1"],
+                        sha1=malware_yaml[malware_class][program][version]["checksums"][
+                            "sha1"
+                        ],
                     )
                 )
     return malware_list
@@ -342,13 +342,9 @@ class JWDGetter:
             )
         if not os.environ.get("GALAXY_PULSAR_APP_CONF"):
             raise ValueError("Please set ENV GALAXY_PULSAR_APP_CONF")
-        galaxy_pulsar_app_conf = os.environ.get(
-            "GALAXY_PULSAR_APP_CONF"
-        ).strip()
+        galaxy_pulsar_app_conf = os.environ.get("GALAXY_PULSAR_APP_CONF").strip()
 
-        object_store_conf = galaxy_jwd.get_object_store_conf_path(
-            galaxy_config_file
-        )
+        object_store_conf = galaxy_jwd.get_object_store_conf_path(galaxy_config_file)
         backends = galaxy_jwd.parse_object_store(object_store_conf)
 
         # Add pulsar staging directory (runner: pulsar_embedded) to backends
@@ -497,25 +493,9 @@ MALWARE_CLASS MALWARE MALWARE_VERSION PATH"
                 f"JWD for Job {job.galaxy_id} found but does not exist in FS",
                 file=sys.stderr,
             )
+    if args.interactive:
+        print("Complete.")
 
-    print("Complete.")
-
-
-# ✅ get a list of Galaxy IDs of currently running interactive jobs
-# for each job
-# ✅ get a list of all files (recursively) smaller than 10MB in that JWD using change_to_jwd.py
-#  for each file
-# ✅ hash that file with crc32
-# ✅ compare hash to given list of hashes provided and if it matches,
-# ✅ also hash with md5 and if that matches
-# - extract the condor_id from file
-# - gxadmin mutate fail-job $job
-# - gxadmin report job-info $job
-# - condor rm $condor_id
-# - gxadmin report job-info | grep Owner
-
-# extended and when tested:
-# implement auto block with bioblend
 
 if __name__ == "__main__":
     main()
