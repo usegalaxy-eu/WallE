@@ -1,52 +1,48 @@
 ---
-- name: Deploy Find Miners script
-  ansible.builtin.template:
-    src: find_miners.py
-    dest: /usr/local/bin/find_miners.py
-    owner: root
-    group: root
-    mode: 0755
-
-- name: Create directories (find-miners)
+- name: Create directories (WallE)
   ansible.builtin.file:
     state: directory
     path: "{{ item }}"
-    mode: 0755
+    mode: "0755"
     owner: root
     group: root
   with_items:
-    - /var/log/find-miners
-    - /etc/find-miners
+    - "{{ walle_log_dir }}"
+    - "{{ walle_malware_database_location }}"
 
-- name: Read checksum files
-  ansible.builtin.set_fact:
-    crc_files: "{{ lookup('fileglob', 'files/find-miners/*.crc').split(',') | list }}"
-    sha_files: "{{ lookup('fileglob', 'files/find-miners/*.sha').split(',') | list }}"
-
-- name: Copy checksum files
-  ansible.builtin.copy:
-    mode: 0664
+- name: Deploy (WallE)
+  ansible.builtin.template:
+    src: walle.py
+    dest: "{{ walle_script_location }}"
     owner: root
     group: root
-    src: "{{ item }}"
-    dest: /etc/find-miners
-  with_items:
-    - crc_files
-    - sha_files
-    
+    mode: "0755"
 
-- name: Create logfile (find-miners)
+- name: Clone malware database (WallE)
+  ansible.builtin.git:
+    repo: "{{ walle_malware_repo }}"
+    dest: "{{ walle_malware_database_location }}"
+    version: "{{ walle_malware_database_version }}"
+
+
+- name: Add env variable for database (WallE)
+  ansible.builtin.lineinfile:
+    path: "{{ walle_bashrc }}"
+    line: "export MALWARE_LIB={{ walle_malware_database_location }}/{{ walle_database_file }}"
+
+
+- name: Create logfile (WallE)
   ansible.builtin.file:
     state: touch
-    path: /var/log/find-miners/miners.log
-    mode: 0664
+    path: "{{ walle_log_dir }}/walle.log"
+    mode: "0664"
     owner: "{{ galaxy_user.name }}"
     group: "{{ galaxy_group.name }}"
 
-- name: Setup logrotate (find-miners)
+- name: Setup logrotate (WallE)
   ansible.builtin.copy:
     content: |
-      /var/log/find-miners/miners.log
+      {{ walle_log_dir }}/walle.log
       {
           rotate 6
           daily
@@ -56,20 +52,22 @@
           notifempty
           compress
       }
-    dest: /etc/logrotate.d/find-miners
-    mode: 0664
+    dest: /etc/logrotate.d/walle
+    mode: "0664"
     owner: root
     group: root
 
-- name: Add to cron (find-miners)
+- name: Add to cron (WallE)
   ansible.builtin.cron:
-    name: "Find Miners"
+    name: "WallE - Clean up Malware"
     day: "*"
     hour: "*/1"
     minute: "0"
     user: "{{ galaxy_user.name }}"
     job: "source /home/{{ galaxy_user.home }}/.bashrc; /usr/bin/python \
-      /usr/local/bin/find-miners.py --min-size 1 --max-size 10 \
-      --since 2 {% for crc in crc_files %} --crc32 {{ crc }} {% end for %} \
-      {% for sha in sha_files %} --sha1 {{ sha }} {% end for %} >> \
-      /var/log/find-miners/miners.log 2>&1
+      /usr/local/bin/walle.py {% if walle_filesize_min %} --min-size \
+      {{ walle_filesize_min }} {% endif %} \
+      {% if walle_filesize_max %} --max-size {{ walle_filesize_max }} {% endif %} \
+      {% if walle_since_hours %} --since {{ walle_since_hours }} {% endif %} \
+      {% if walle_verbose %}-v{% endif %} >> \
+      /var/log/find-miners/miners.log 2>&1"
