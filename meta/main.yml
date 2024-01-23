@@ -1,0 +1,16 @@
+galaxy_info:
+  description: >
+    Role for deploying an anti-malware python script
+    for Galaxy job working directories.
+  min_ansible_version: "2.1" # How to find this out?
+  namespace: usegalaxy_eu
+  role_name: walle
+  author: Mira Kuntz
+  company: Galaxy Project
+  license: MIT
+  platforms:
+    - name: EL
+      versions:
+        - "9"
+        - "8"
+allow_duplicates: true
