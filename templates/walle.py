@@ -62,7 +62,7 @@ def make_parser() -> argparse.ArgumentParser:
                 PGUSER: Galaxy database user
                 PGHOST: Galaxy database host
 
-            We also need a ~/.pgpass file (same as gxadmin's) in format:
+                PGPASSFILE: path to .pgpass file (same as gxadmin's) in format:
                 <pg_host>:5432:*:<pg_user>:<pg_password>
             """,
         formatter_class=argparse.RawTextHelpFormatter,
@@ -388,7 +388,7 @@ class RunningJobDatabase(galaxy_jwd.Database):
                 "<pg_host>:5432:*:<pg_user>:<pg_password>"
             )
         db_password = galaxy_jwd.extract_password_from_pgpass(
-            pgpass_file=os.path.expanduser("~/.pgpass")
+            pgpass_file=os.environ.get("PGPASSFILE").strip()
         )
         super().__init__(
             db_name,
