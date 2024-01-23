@@ -1,5 +1,7 @@
-# malware-detection
-Python script that fetches (toolname filtered) running jobs, calculates checksums for all files in the jobworking directory and compares them to a database.
+# WALL·E
+Keep your Galaxy job working directories (JWDs) clean.  
+Python script that fetches (toolname filtered) running jobs, calculates checksums for all files in the jobworking directory and compares them to a database.  
+Deployed with Ansible.
 
 ## Dependencies
 This role expect several requirements.
@@ -19,7 +21,7 @@ For ansible details consult `defaults/main.yml`, it should be pretty much self-e
 ## Usage
 From the tools help command:
 ~~~
-usage: Miner Finder [-h] [--chunksize CHUNKSIZE] [--min-size MIN_SIZE_MB] [--max-size MAX_SIZE_MB] [--since SINCE] [--tool TOOL] [-v] [-i]
+usage: Wall·E [-h] [--chunksize CHUNKSIZE] [--min-size MIN_SIZE_MB] [--max-size MAX_SIZE_MB] [--since SINCE] [--tool TOOL] [-v] [-i]
 
             Loads a yaml malware library with CRC32 and SHA1 hashes as arguments
             from the environment variable "MALWARE_LIB",
