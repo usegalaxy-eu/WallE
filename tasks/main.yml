@@ -36,8 +36,8 @@
     state: touch
     path: "{{ walle_log_dir }}/walle.log"
     mode: "0664"
-    owner: "{{ galaxy_user.name }}"
-    group: "{{ galaxy_group.name }}"
+    owner: "{{ walle_user_name }}"
+    group: "{{ walle_user_group }}"
 
 - name: Setup logrotate (WallE)
   ansible.builtin.copy:
@@ -63,7 +63,7 @@
     day: "*"
     hour: "*/1"
     minute: "0"
-    user: "{{ galaxy_user.name }}"
+    user: "{{ walle_user_name }}"
     job: "source /home/{{ galaxy_user.home }}/.bashrc; /usr/bin/python \
       /usr/local/bin/walle.py {% if walle_filesize_min %} --min-size \
       {{ walle_filesize_min }} {% endif %} \
