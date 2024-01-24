@@ -12,7 +12,7 @@ walle_filesize_max: 10
 walle_since_hours: 24
 
 walle_cron_day: "*"
-walle_cron_hour: "/1"
+walle_cron_hour: "*/1"
 walle_cron_minute: "0"
 walle_verbose: false
 walle_user_name: "{{ galaxy_user_name | default('galaxy') }}"
