@@ -60,9 +60,9 @@
 - name: Add to cron (WallE)
   ansible.builtin.cron:
     name: "WallE - Clean up Malware"
-    day: "*"
-    hour: "*/1"
-    minute: "0"
+    day: "{{ walle_cron_day }}"
+    hour: "{{ walle_cron_hour }}"
+    minute: "{{ walle_cron_minute }}"
     user: "{{ walle_user_name }}"
     job: "source {{ walle_bashrc }}; /usr/bin/python \
       /usr/local/bin/walle.py {% if walle_filesize_min %} --min-size \
@@ -70,4 +70,4 @@
       {% if walle_filesize_max %} --max-size {{ walle_filesize_max }} {% endif %} \
       {% if walle_since_hours %} --since {{ walle_since_hours }} {% endif %} \
       {% if walle_verbose %}-v{% endif %} >> \
-      /var/log/find-miners/miners.log 2>&1"
+      {{ walle_log_dir }}/walle.log 2>&1"

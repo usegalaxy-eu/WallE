@@ -10,6 +10,10 @@ walle_script_location: /usr/local/bin/walle.py
 walle_filesize_min: 1
 walle_filesize_max: 10
 walle_since_hours: 24
+
+walle_cron_day: "*"
+walle_cron_hour: "/1"
+walle_cron_minute: "0"
 walle_verbose: false
 walle_user_name: "{{ galaxy_user_name | default('galaxy') }}"
 walle_user_group: "{{ galaxy_group | default('galaxy') }}"
