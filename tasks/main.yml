@@ -64,7 +64,7 @@
     hour: "*/1"
     minute: "0"
     user: "{{ walle_user_name }}"
-    job: "source /home/{{ galaxy_user.home }}/.bashrc; /usr/bin/python \
+    job: "source {{ walle_bashrc }}; /usr/bin/python \
       /usr/local/bin/walle.py {% if walle_filesize_min %} --min-size \
       {{ walle_filesize_min }} {% endif %} \
       {% if walle_filesize_max %} --max-size {{ walle_filesize_max }} {% endif %} \
