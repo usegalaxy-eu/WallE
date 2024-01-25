@@ -1,0 +1,26 @@
+---
+# Locations
+walle_malware_database_location: /etc/walle
+walle_malware_database_version: main
+walle_malware_repo: https://github.com/usegalaxy-eu/intergalactic-most-wanted-list.git
+
+walle_pgpass_file: "/home/{{ walle_user_name }}/.pgpass"
+walle_bashrc: /opt/galaxy/.bashrc
+walle_python: /usr/bin/python
+walle_database_file: checksums.yml
+walle_log_dir: /var/log/walle
+walle_script_location: /usr/local/bin/walle.py
+
+# Script args
+walle_filesize_min: 1
+walle_filesize_max: 10
+walle_since_hours: 24
+#walle_tool: <string to filter tool ids in database job table>
+walle_verbose: false
+
+# Cron
+walle_cron_day: "*"
+walle_cron_hour: "*/1"
+walle_cron_minute: "0"
+walle_user_name: "{{ galaxy_user_name | default('galaxy') }}"
+walle_user_group: "{{ galaxy_group | default('galaxy') }}"
