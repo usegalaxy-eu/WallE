@@ -72,7 +72,9 @@
       {% if walle_virtualenv %} source {{ walle_virtualenv }}/bin/activate;
       {{ walle_virtualenv }}/bin/python {% else %}
       {{ walle_python }} {% endif %}
-      {{ walle_script_location }} {% if walle_filesize_min %} --min-size
+      {{ walle_script_location }}
+      {% if walle_tool %} {{ walle_tool }} {% endif %}
+      {% if walle_filesize_min %} --min-size
       {{ walle_filesize_min }} {% endif %}
       {% if walle_filesize_max %} --max-size {{ walle_filesize_max }} {% endif %}
       {% if walle_since_hours %} --since {{ walle_since_hours }} {% endif %}
