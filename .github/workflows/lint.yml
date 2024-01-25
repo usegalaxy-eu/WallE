@@ -9,7 +9,7 @@ name: Linting
   workflow_dispatch:
 
 jobs:
-  python-lint:
+  super-linter:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
