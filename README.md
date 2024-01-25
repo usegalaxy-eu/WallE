@@ -1,3 +1,5 @@
+[![Super-Linter](https://github.com/usegalaxy_eu/WallE/actions/workflows/lint/badge.svg)](https://github.com/marketplace/actions/super-linter)
+
 # WALL·E
 Keep your Galaxy job working directories (JWDs) clean.  
 Python script that fetches (toolname filtered) running jobs, calculates checksums for all files in the jobworking directory and compares them to a database.  
