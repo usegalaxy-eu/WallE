@@ -66,7 +66,7 @@
     user: "{{ walle_user_name }}"
     job: "source {{ walle_bashrc }}; \
       {{ walle_python }} \
-      {% if walle_virtualenv %} source walle_virtualenv {% endif %} \
+      {% if walle_virtualenv %} source {{ walle_virtualenv }}/bin/activate {% endif %} \
       /usr/local/bin/walle.py {% if walle_filesize_min %} --min-size \
       {{ walle_filesize_min }} {% endif %} \
       {% if walle_filesize_max %} --max-size {{ walle_filesize_max }} {% endif %} \
