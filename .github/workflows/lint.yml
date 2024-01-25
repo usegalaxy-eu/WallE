@@ -24,4 +24,5 @@ jobs:
           VALIDATE_PYTHON_BLACK: true
           VALIDATE_YAML: true
           VALIDATE_ANSIBLE: true
+          ANSIBLE_DIRECTORY: .
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
