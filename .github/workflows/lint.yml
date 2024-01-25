@@ -22,6 +22,6 @@ jobs:
         env:
           VALIDATE_ALL_CODEBASE: true
           VALIDATE_PYTHON_BLACK: true
-          VALIDATE_YAML_YAMLLINT: true
-          VALIDATE_ANSIBLE_ANSIBLE_LINT: true
+          VALIDATE_YAML: true
+          VALIDATE_ANSIBLE: true
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
