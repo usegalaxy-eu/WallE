@@ -1,8 +1,9 @@
 ---
-walle_malware_database_location: /etc/walle/
+walle_malware_database_location: /etc/walle
 walle_malware_database_version: main
 walle_malware_repo: https://github.com/usegalaxy-eu/intergalactic-most-wanted-list.git
 
+walle_pgpass_file: "/home/{{ walle_user_name }}/.pgpass"
 walle_bashrc: /opt/galaxy/.bashrc
 walle_python: /usr/bin/python
 walle_database_file: checksums.yml

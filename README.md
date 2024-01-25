@@ -14,7 +14,8 @@ This role expect several requirements.
     - `PGDATABASE`: Name of the Galaxy database
     - `PGUSER`: Galaxy database user
     - `PGHOST`: Galaxy database host
-    - `PGPASSFILE`: path to Postgres' `.pgpass` file
+    - `PGPASSFILE`: path to Postgres' `.pgpass` file (defaults to `/home/<walle_user_name>/.pgpass`)
+    - `GALAXY_PULSAR_APP_CONF`: 
 ## Ansible
 For ansible details consult `defaults/main.yml`, it should be pretty much self-explanatory.  
 
