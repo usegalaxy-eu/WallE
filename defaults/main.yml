@@ -4,6 +4,7 @@ walle_malware_database_version: main
 walle_malware_repo: https://github.com/usegalaxy-eu/intergalactic-most-wanted-list.git
 
 walle_bashrc: /opt/galaxy/.bashrc
+walle_python: /usr/bin/python
 walle_database_file: checksums.yml
 walle_log_dir: /var/log/walle
 walle_script_location: /usr/local/bin/walle.py

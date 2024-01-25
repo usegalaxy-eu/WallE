@@ -64,7 +64,9 @@
     hour: "{{ walle_cron_hour }}"
     minute: "{{ walle_cron_minute }}"
     user: "{{ walle_user_name }}"
-    job: "source {{ walle_bashrc }}; /usr/bin/python \
+    job: "source {{ walle_bashrc }}; \
+      {{ walle_python }} \
+      {% if walle_virtualenv %} source walle_virtualenv {% endif %} \
       /usr/local/bin/walle.py {% if walle_filesize_min %} --min-size \
       {{ walle_filesize_min }} {% endif %} \
       {% if walle_filesize_max %} --max-size {{ walle_filesize_max }} {% endif %} \
