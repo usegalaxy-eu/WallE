@@ -138,21 +138,25 @@ def make_parser() -> argparse.ArgumentParser:
 class Job:
     def __init__(
         self,
-        galaxy_id: int,
-        object_store_id: int,
         user_id: int,
         user_name: str,
+        user_mail: str,
         tool_id: str,
-        job_runner_name: str,
+        galaxy_id: int,
+        runner_id: int,
+        runner_name: str,
+        object_store_id: int,
         jwd=None,
     ) -> None:
-        self.galaxy_id = galaxy_id
-        self.object_store_id = object_store_id
-        self.jwd = jwd
         self.user_id = user_id
         self.user_name = user_name
+        self.user_mail = user_mail
         self.tool_id = tool_id
-        self.job_runner_name = job_runner_name
+        self.galaxy_id = galaxy_id
+        self.runner_id = runner_id
+        self.runner_name = runner_name
+        self.object_store_id = object_store_id
+        self.jwd = jwd
 
     def report_id_and_user_name(self) -> str:
         return f"{self.galaxy_id} {self.user_name}"
@@ -211,7 +215,7 @@ def file_in_size_range(file_stat: os.stat_result, min_size=None, max_size=None) 
     return True
 
 
-def all_files_in_dir(dir: pathlib.Path, args) -> [pathlib.Path]:
+def all_files_in_dir(dir: pathlib.Path, args) -> list[pathlib.Path]:
     """
     Gets all files of given directory and its subdirectories and
     appends file to a list of pathlib.Path objects, if atime
@@ -255,8 +259,8 @@ def digest_file_sha1(chunksize: int, path: pathlib.Path) -> str:
 
 
 def scan_file_for_malware(
-    chunksize: int, file: pathlib.Path, lib: [Malware]
-) -> [Malware]:
+    chunksize: int, file: pathlib.Path, lib: list[Malware]
+) -> list[Malware]:
     """
     Returning a list of Malware, because
     it could potentially happen (even if it should not),
@@ -286,11 +290,12 @@ def report_matching_malware(job: Job, malware: Malware, path: pathlib.Path) -> s
     """
     Create log line depending on verbosity
     """
-    return f"{datetime.datetime.now()} {job.user_name} {job.galaxy_id} \
+    return f"{datetime.datetime.now()} {job.user_id} {job.user_name} {job.user_mail} \
+{job.tool_id} {job.galaxy_id} {job.runner_id} {job.runner_name} {job.object_store_id} \
 {malware.malware_class} {malware.program} {malware.version} {path}"
 
 
-def construct_malware_list(malware_yaml: dict) -> [Malware]:
+def construct_malware_list(malware_yaml: dict) -> list[Malware]:
     """
     creates a flat list of malware objects, that hold all info
     The nested structure in yaml is for better optical structuring
@@ -359,7 +364,7 @@ class JWDGetter:
             job.galaxy_id,
             [job.object_store_id],
             self.backends,
-            job.job_runner_name,
+            job.runner_name,
         )
         return jwd
 
@@ -397,10 +402,13 @@ class RunningJobDatabase(galaxy_jwd.Database):
             db_password,
         )
 
-    def get_running_jobs(self, tool=None) -> [Job]:
+    def get_running_jobs(self, tool=None) -> list[Job]:
         query = f"""
-                SELECT id, object_store_id, tool_id, user_id, user, job_runner_name
-                FROM job
+                SELECT j.user_id, u.username, u.email, j.tool_id, j.id,
+                j.job_runner_external_id, j.job_runner_name, j.object_store_id
+                FROM
+                    job j
+                    INNER JOIN galaxy_user u ON j.user_id = u.id
                 WHERE state = 'running'
                 AND object_store_id IS NOT NULL
                 AND user_id IS NOT NULL
@@ -422,21 +430,25 @@ class RunningJobDatabase(galaxy_jwd.Database):
             sys.exit(1)
         running_jobs_list = []
         for (
-            job_id,
-            object_store_id,
-            tool_id,
             user_id,
             user_name,
-            job_runner_name,
+            user_mail,
+            tool_id,
+            job_id,
+            runner_id,
+            runner_name,
+            object_store_id,
         ) in running_jobs:
             running_jobs_list.append(
                 Job(
-                    galaxy_id=job_id,
-                    object_store_id=object_store_id,
-                    tool_id=tool_id,
                     user_id=user_id,
                     user_name=user_name,
-                    job_runner_name=job_runner_name,
+                    user_mail=user_mail,
+                    tool_id=tool_id,
+                    galaxy_id=job_id,
+                    runner_id=runner_id,
+                    runner_name=runner_name,
+                    object_store_id=object_store_id,
                 )
             )
         return running_jobs_list
