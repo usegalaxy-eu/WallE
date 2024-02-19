@@ -229,11 +229,8 @@ def all_files_in_dir(dir: pathlib.Path, args) -> [pathlib.Path]:
     return files
 
 
-def load_malware_lib_from_env(env=CHECKSUM_FILE_ENV) -> dict:
-    if not os.environ.get(env):
-        raise ValueError(env)
-    malware_lib_path = os.environ.get(env).strip()
-    with open(malware_lib_path, "r") as malware_yaml:
+def load_malware_lib_from_env(malware_file: pathlib.Path) -> dict:
+    with open(malware_file, "r") as malware_yaml:
         malware_lib = yaml.safe_load(malware_yaml)
     return malware_lib
 
@@ -326,31 +323,17 @@ class JWDGetter:
     This class is a workaround for calling 'galaxy_jwd.py's main function.
     """
 
-    def __init__(self) -> None:
+    def __init__(
+        self, galaxy_config_file: pathlib.Path, pulsar_app_conf: pathlib.Path
+    ) -> None:
         """
         Reads the storage backend configuration
         (might deserve it's own function in galaxy_jwd.py)
         """
-        if not os.environ.get("GALAXY_CONFIG_FILE"):
-            raise ValueError("Please set ENV GALAXY_CONFIG_FILE")
-        galaxy_config_file = os.environ.get("GALAXY_CONFIG_FILE").strip()
-
-        # Check if the given galaxy.yml file exists
-        if not os.path.isfile(galaxy_config_file):
-            raise ValueError(
-                f"The given galaxy.yml file {galaxy_config_file} does not exist"
-            )
-        if not os.environ.get("GALAXY_PULSAR_APP_CONF"):
-            raise ValueError("Please set ENV GALAXY_PULSAR_APP_CONF")
-        galaxy_pulsar_app_conf = os.environ.get("GALAXY_PULSAR_APP_CONF").strip()
-
         object_store_conf = galaxy_jwd.get_object_store_conf_path(galaxy_config_file)
         backends = galaxy_jwd.parse_object_store(object_store_conf)
-
         # Add pulsar staging directory (runner: pulsar_embedded) to backends
-        backends["pulsar_embedded"] = galaxy_jwd.get_pulsar_staging_dir(
-            galaxy_pulsar_app_conf
-        )
+        backends["pulsar_embedded"] = galaxy_jwd.get_pulsar_staging_dir(pulsar_app_conf)
         self.backends = backends
 
     # might deserve it's own function in galaxy_jwd.py
@@ -365,31 +348,7 @@ class JWDGetter:
 
 
 class RunningJobDatabase(galaxy_jwd.Database):
-    def __init__(self):
-        if not os.environ.get("PGDATABASE"):
-            raise ValueError("Please set ENV PGDATABASE")
-        db_name = os.environ.get("PGDATABASE").strip()
-
-        if not os.environ.get("PGUSER"):
-            raise ValueError("Please set ENV PGUSER")
-        db_user = os.environ.get("PGUSER").strip()
-
-        if not os.environ.get("PGHOST"):
-            raise ValueError("Please set ENV PGHOST")
-        db_host = os.environ.get("PGHOST").strip()
-
-        # Check if ~/.pgpass file exists and is not empty
-        if (
-            not os.path.isfile(os.path.expanduser("~/.pgpass"))
-            or os.stat(os.path.expanduser("~/.pgpass")).st_size == 0
-        ):
-            raise ValueError(
-                "Please create a ~/.pgpass file in format: "
-                "<pg_host>:5432:*:<pg_user>:<pg_password>"
-            )
-        db_password = galaxy_jwd.extract_password_from_pgpass(
-            pgpass_file=os.environ.get("PGPASSFILE").strip()
-        )
+    def __init__(self, db_host: str, db_name: str, db_user: str, db_password: str):
         super().__init__(
             db_name,
             db_user,
@@ -442,14 +401,50 @@ class RunningJobDatabase(galaxy_jwd.Database):
         return running_jobs_list
 
 
+def get_path_from_env_or_error(env: str) -> pathlib.Path:
+    if os.environ.get(env):
+        if (path := pathlib.Path(os.environ.get(env).strip())).exists():
+            return path
+        else:
+            raise ValueError(f"Path for {env} is invalid")
+    else:
+        raise ValueError(f"Please set ENV {env}")
+
+
+def get_str_from_env_or_error(env: str) -> str:
+    if os.environ.get(env):
+        if len(from_env := os.environ.get(env).strip()) > 0:
+            return from_env
+        else:
+            raise ValueError(f"Path for {env} is invalid")
+    else:
+        raise ValueError(f"Please set ENV {env}")
+
+
 def main():
     """
     Miner Finder's main function. Shows a status bar while processing the jobs found in Galaxy
     """
     args = make_parser().parse_args()
-    jwd_getter = JWDGetter()
-    db = RunningJobDatabase()
-    malware_library = construct_malware_list(load_malware_lib_from_env())
+    galaxy_config_file = get_path_from_env_or_error("GALAXY_CONFIG_FILE")
+
+    jwd_getter = JWDGetter(
+        galaxy_config_file=galaxy_config_file,
+        pulsar_app_conf=get_path_from_env_or_error("GALAXY_PULSAR_APP_CONF"),
+    )
+    db = RunningJobDatabase(
+        db_host=get_str_from_env_or_error("PGHOST"),
+        db_password=galaxy_jwd.extract_password_from_pgpass(
+            get_path_from_env_or_error("PGPASSFILE")
+        ),
+        db_name=get_str_from_env_or_error("PGDATABASE"),
+        db_user=get_str_from_env_or_error("PGUSER"),
+    )
+    malware_library = construct_malware_list(
+        malware_yaml=load_malware_lib_from_env(
+            malware_file=get_path_from_env_or_error("MALWARE_LIB")
+        )
+    )
     jobs = db.get_running_jobs(args.tool)
     if args.interactive:
         if args.verbose:
