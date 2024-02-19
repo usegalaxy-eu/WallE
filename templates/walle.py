@@ -8,6 +8,7 @@ import datetime
 import hashlib
 import os
 import pathlib
+import requests
 import sys
 import time
 import zlib
@@ -27,6 +28,45 @@ def convert_arg_to_byte(mb: str) -> int:
 
 def convert_arg_to_seconds(hours: str) -> int:
     return int(hours) * 60 * 60
+
+
+class Severity:
+    def __init__(self, number: int, name: str):
+        self.value = number
+        self.name = name
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, Severity):
+            raise ValueError("The other must be an instance of the Severity")
+        if self.value == other.value and self.name == other.name:
+            return True
+        else:
+            return False
+
+    def __le__(self, other) -> bool:
+        if not isinstance(other, Severity):
+            raise ValueError("The other must be an instance of the Severity")
+        if self.value <= other.value:
+            return True
+        else:
+            return False
+
+    def __ge__(self, other) -> bool:
+        if not isinstance(other, Severity):
+            raise ValueError("The other must be an instance of the Severity")
+        if self.value >= other.value:
+            return True
+        else:
+            return False
+
+
+VALID_SEVERITIES = (Severity(0, "low"), Severity(1, "medium"), Severity(2, "high"))
+
+
+def convert_str_to_severity(test_level: str) -> Severity:
+    for level in VALID_SEVERITIES:
+        if (level.name.casefold()).__eq__(test_level.casefold()):
+            return level
 
 
 def make_parser() -> argparse.ArgumentParser:
@@ -64,6 +104,10 @@ def make_parser() -> argparse.ArgumentParser:
 
                 PGPASSFILE: path to .pgpass file (same as gxadmin's) in format:
                 <pg_host>:5432:*:<pg_user>:<pg_password>
+            The '--delete-user' flag requires additional environment variables:
+                GALAXY_BASE_URL: Instance hostname including scheme (https://examplegalaxy.org)
+                GALAXY_API_KEY: Galaxy API key with admin privileges
+                GALAXY_ROOT: Galaxy root directiory (e.g. /srv/galaxy)
             """,
         formatter_class=argparse.RawTextHelpFormatter,
     )
@@ -131,7 +175,16 @@ def make_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Show progress bar. Leave unset for cleaner logs and slightly higher performance",
     )
-
+    my_parser.add_argument(
+        "--delete-user",
+        metavar="MIN_SEVERITY",
+        choices=VALID_SEVERITIES,
+        type=convert_str_to_severity,
+        help="Delete user when severity level is equal or higher. \
+            Following additional environment variables are expected: \
+            GALAXY_API_KEY \
+            GALAXY_BASE_URL",
+    )
     return my_parser
 
 
@@ -182,7 +235,7 @@ class Malware:
         malware_class: str,
         program: str,
         version: str,
-        severity: str,
+        severity: Severity,
         description: str,
         crc32: str,
         sha1: str,
@@ -292,7 +345,7 @@ def report_matching_malware(job: Job, malware: Malware, path: pathlib.Path) -> s
     """
     return f"{datetime.datetime.now()} {job.user_id} {job.user_name} {job.user_mail} \
 {job.tool_id} {job.galaxy_id} {job.runner_id} {job.runner_name} {job.object_store_id} \
-{malware.malware_class} {malware.program} {malware.version} {path}"
+{malware.malware_class} {malware.program} {malware.severity.name} {malware.version} {path}"
 
 
 def construct_malware_list(malware_yaml: dict) -> list[Malware]:
@@ -309,9 +362,9 @@ def construct_malware_list(malware_yaml: dict) -> list[Malware]:
                         malware_class=malware_class,
                         program=program,
                         version=version,
-                        severity=malware_yaml[malware_class][program][version][
-                            "severity"
-                        ],
+                        severity=convert_str_to_severity(
+                            malware_yaml[malware_class][program][version]["severity"]
+                        ),
                         description=malware_yaml[malware_class][program][version][
                             "description"
                         ],
@@ -454,6 +507,20 @@ class RunningJobDatabase(galaxy_jwd.Database):
         return running_jobs_list
 
 
+def delete_user(user_id: int, base_url: str, api_key: str) -> bool:
+    url = f"{base_url}/api/users/{encode_galaxy_user_id(user_id)}"
+    header = {"x-api-key": api_key}
+    response = requests.delete(url=url, headers=header)
+    if response.status_code == 200:
+        print(f"User {user_id} deleted successfully.")
+    else:
+        print(f"Failed to delete user {user_id}!")
+
+
+def encode_galaxy_user_id(id: int) -> str:
+    pass
+
+
 def main():
     """
     Miner Finder's main function. Shows a status bar while processing the jobs found in Galaxy
@@ -463,11 +530,16 @@ def main():
     db = RunningJobDatabase()
     malware_library = construct_malware_list(load_malware_lib_from_env())
     jobs = db.get_running_jobs(args.tool)
+    if args.delete_user:
+        api_key = get_str_from_env_or_error("GALAXY_API_KEY")
+        galaxy_url = get_path_from_env_or_error("GALAXY_BASE_URL")
+        galaxy_root = get_path_from_env_or_error("GALAXY_ROOT")
     if args.interactive:
         if args.verbose:
             print(
-                "TIMESTAMP GALAXY_USER JOB_ID \
-MALWARE_CLASS MALWARE MALWARE_VERSION PATH"
+                "TIMESTAMP GALAXY_USER_ID GALAXY_USER_MAIL TOOL_ID \
+                GALAXY_JOB_ID RUNNER_JOB_ID RUNNER_NAME MALWARE_CLASS \
+                OBJECT_STORE_ID MALWARE SEVERITY MALWARE_VERSION PATH"
             )
         else:
             print("GALAXY_USER JOB_ID")
@@ -487,8 +559,8 @@ MALWARE_CLASS MALWARE MALWARE_VERSION PATH"
                 )
                 if len(matching_malware) > 0:
                     print("\n")
-                    if args.verbose:
-                        for malware in matching_malware:
+                    for malware in matching_malware:
+                        if args.verbose:
                             print(
                                 report_matching_malware(
                                     job=job,
@@ -496,6 +568,16 @@ MALWARE_CLASS MALWARE MALWARE_VERSION PATH"
                                     path=file,
                                 )
                             )
+                        if args.delete_user:
+                            print(type(args.delete_user))
+                            print(type(malware.severity))
+                            if args.delete_user <= malware.severity:
+                                delete_user(
+                                    user_id=job.user_id,
+                                    api_key=api_key,
+                                    base_url=galaxy_url,
+                                )
+
                     else:
                         print(job.report_id_and_user_name())
                         break

@@ -15,6 +15,11 @@ walle_script_location: /usr/local/bin/walle.py
 walle_filesize_min: 1
 walle_filesize_max: 10
 walle_since_hours: 24
+#delete users when malware was found and malware severity reached walle_delete_threshold
+walle_delete_users: false
+walle_delete_threshold: medium
+#walle_api_key: #admin api key to delete users, goes to VAULT
+#walle_galaxy_url: #galaxy_hostname, no leading slash
 #walle_tool: <string to filter tool ids in database job table>
 walle_verbose: false
 

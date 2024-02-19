@@ -33,6 +33,14 @@
     - 'export MALWARE_LIB="{{ walle_malware_database_location }}/{{ walle_database_file }}"'
     - 'export PGPASSFILE="{{ walle_pgpass_file }}"'
 
+- name: Add optinal env variables for database (WallE)
+  ansible.builtin.lineinfile:
+    path: "{{ walle_bashrc }}"
+    line: "{{ item }}"
+  with_items:
+    - 'export GALAXY_API_KEY="{{ walle_api_key }}"'
+    - 'export GALAXY_BASE_URL="{{ walle_galaxy_url }}"'
+  when: walle_delete_users
 
 - name: Create logfile (WallE)
   ansible.builtin.file:
@@ -79,4 +87,6 @@
       {% if walle_filesize_max %} --max-size {{ walle_filesize_max }} {% endif %}
       {% if walle_since_hours %} --since {{ walle_since_hours }} {% endif %}
       {% if walle_verbose %} -v {% endif %}
+      {% if walle_delete_users %} --delete-users {{ walle_delete_threshold }}
+      {% endif %}
       >> {{ walle_log_dir }}/walle.log 2>&1
