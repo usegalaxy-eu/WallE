@@ -60,7 +60,7 @@ class Severity:
             return False
 
 
-VALID_SEVERITIES = (Severity(0, "low"), Severity(1, "medium"), Severity(2, "high"))
+VALID_SEVERITIES = (Severity(0, "LOW"), Severity(1, "MEDIUM"), Severity(2, "HIGH"))
 
 
 def convert_str_to_severity(test_level: str) -> Severity:
@@ -181,6 +181,8 @@ def make_parser() -> argparse.ArgumentParser:
         choices=VALID_SEVERITIES,
         type=convert_str_to_severity,
         help="Delete user when severity level is equal or higher. \
+            Make sure that you know what the consequences are on your \
+            instance, when a user is set to deleted. \
             Following additional environment variables are expected: \
             GALAXY_API_KEY \
             GALAXY_BASE_URL",
@@ -340,9 +342,9 @@ def report_matching_malware(job: Job, malware: Malware, path: pathlib.Path) -> s
     """
     Create log line depending on verbosity
     """
-    return f"{datetime.datetime.now()} {job.user_id} {job.user_name} {job.user_mail} \
+    return f"{datetime.datetime.now()} {malware.severity.name} {job.user_id} {job.user_name} {job.user_mail} \
 {job.tool_id} {job.galaxy_id} {job.runner_id} {job.runner_name} {job.object_store_id} \
-{malware.malware_class} {malware.program} {malware.severity.name} {malware.version} {path}"
+{malware.malware_class} {malware.program} {malware.version} {path}"
 
 
 def construct_malware_list(malware_yaml: dict) -> list[Malware]:
@@ -546,9 +548,9 @@ def main():
     if args.interactive:
         if args.verbose:
             print(
-                "TIMESTAMP GALAXY_USER_ID GALAXY_USER_MAIL TOOL_ID \
-                GALAXY_JOB_ID RUNNER_JOB_ID RUNNER_NAME MALWARE_CLASS \
-                OBJECT_STORE_ID MALWARE SEVERITY MALWARE_VERSION PATH"
+                "TIMESTAMP MALWARE_SEVERITY USER_ID USER_NAME USER_MAIL TOOL_ID GALAXY_JOB_ID \
+                RUNNER_JOB_ID RUNNER_NAME OBJECT_STORE_ID MALWARE_CLASS \
+                MALWARE_NAME MALWARE_VERSION PATH"
             )
         else:
             print("GALAXY_USER JOB_ID")
@@ -590,7 +592,7 @@ def main():
             )
     # Deletes users at the end, to report all malicious jobs of a user
     for user_id in delete_users:
-        # add notification api call here
+        # add notification here
         api.delete_user(encoded_user_id=api.encode_galaxy_user_id(decoded_id=user_id))
     if args.interactive:
         print("Complete.")
