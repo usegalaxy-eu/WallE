@@ -15,12 +15,33 @@ walle_script_location: /usr/local/bin/walle.py
 walle_filesize_min: 1
 walle_filesize_max: 10
 walle_since_hours: 24
-#delete users when malware was found and malware severity reached walle_delete_threshold
+walle_envs_database:
+  - key: MALWARE_LIB
+    value: "{{ walle_malware_database_location }}/{{ walle_database_file }}"
+  - key: PGPASSFILE
+    value: "{{ walle_pgpass_file }}"
+  - key: PGHOST
+    value: 127.0.0.1
+  - key: PGUSER
+    value: galaxy
+  - key: PGDATABASE
+    value: galaxy
+
+# delete users when malware was found and malware severity reached walle_delete_threshold
 walle_delete_users: false
 walle_delete_threshold: medium
-#walle_api_key: #admin api key to delete users, goes to VAULT
-#walle_galaxy_url: #galaxy_hostname, no leading slash
-#walle_tool: <string to filter tool ids in database job table>
+walle_envs_user_deletion:
+  - key: GALAXY_API_KEY
+    value: "{{ walle_api_key }}"
+  - key: GALAXY_BASE_URL
+    value: "{{ walle_galaxy_url }}"
+  - key: GALAXY_CONFIG_FILE
+    value: "{{ galaxy_config_dir }}/galaxy.yml"
+  - key: GALAXY_LIB
+    value: "{{ galaxy_root }}/server/lib"
+# walle_api_key: #admin api key to delete users, goes to VAULT
+# walle_galaxy_url: #galaxy_hostname, no leading slash
+# walle_tool: <string to filter tool ids in database job table>
 walle_verbose: false
 
 # Cron
