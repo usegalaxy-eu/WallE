@@ -8,12 +8,12 @@ import datetime
 import hashlib
 import os
 import pathlib
-import requests
 import sys
 import time
 import zlib
 
 import galaxy_jwd
+import requests
 import yaml
 from tqdm import tqdm
 
@@ -486,18 +486,28 @@ def get_str_from_env_or_error(env: str) -> str:
         raise ValueError(f"Please set ENV {env}")
 
 
-def delete_user(user_id: int, base_url: str, api_key: str) -> bool:
-    url = f"{base_url}/api/users/{encode_galaxy_user_id(user_id)}"
-    header = {"x-api-key": api_key}
-    response = requests.delete(url=url, headers=header)
-    if response.status_code == 200:
-        print(f"User {user_id} deleted successfully.")
-    else:
-        print(f"Failed to delete user {user_id}!")
+class GalaxyAPI:
+    def __init__(self, base_url: str, api_key: str) -> None:
+        self.base_url = base_url
+        self.api_key = api_key
+        self.auth_header = {"x-api-key": self.api_key}
 
+    def delete_user(self, encoded_user_id: str) -> bool:
+        url = f"{self.base_url}/api/users/{encoded_user_id}"
+        response = requests.delete(url=url, headers=self.auth_header)
+        if response.status_code == 200:
+            return True
+        else:
+            print(f"Failed to delete user {encoded_user_id}!")
 
-def encode_galaxy_user_id(id: int) -> str:
-    pass
+    def encode_galaxy_user_id(self, decoded_id: int) -> str:
+        url = f"{self.base_url}/api/configuration/encode/{decoded_id}"
+        response = requests.get(url=url, headers=self.auth_header)
+        if response.status_code != 200:
+            print(f"Failed to encode id {decoded_id}!")
+        else:
+            json_response = response.json()
+            return json_response["encoded_id"]
 
 
 def main():
@@ -526,9 +536,13 @@ def main():
     )
     jobs = db.get_running_jobs(args.tool)
     if args.delete_user:
-        api_key = get_str_from_env_or_error("GALAXY_API_KEY")
-        galaxy_url = get_path_from_env_or_error("GALAXY_BASE_URL")
-        galaxy_root = get_path_from_env_or_error("GALAXY_ROOT")
+        api = GalaxyAPI(
+            api_key=get_str_from_env_or_error("GALAXY_API_KEY"),
+            base_url=get_str_from_env_or_error("GALAXY_BASE_URL"),
+        )
+        delete_users = set()
+    if not args.verbose:
+        report_users = set()
     if args.interactive:
         if args.verbose:
             print(
@@ -555,7 +569,10 @@ def main():
                 if len(matching_malware) > 0:
                     print("\n")
                     for malware in matching_malware:
-                        if args.verbose:
+                        if not args.verbose and job.user_id not in report_users:
+                            print(job.report_id_and_user_name())
+                            report_users.add(job.user_id)
+                        else:
                             print(
                                 report_matching_malware(
                                     job=job,
@@ -563,25 +580,18 @@ def main():
                                     path=file,
                                 )
                             )
-                        if args.delete_user:
-                            print(type(args.delete_user))
-                            print(type(malware.severity))
+                        if args.delete_user and job.user_id not in delete_users:
                             if args.delete_user <= malware.severity:
-                                delete_user(
-                                    user_id=job.user_id,
-                                    api_key=api_key,
-                                    base_url=galaxy_url,
-                                )
-
-                    else:
-                        print(job.report_id_and_user_name())
-                        break
-
+                                delete_users.add(job.user_id)
         else:
             print(
                 f"JWD for Job {job.galaxy_id} found but does not exist in FS",
                 file=sys.stderr,
             )
+    # Deletes users at the end, to report all malicious jobs of a user
+    for user_id in delete_users:
+        # add notification api call here
+        api.delete_user(encoded_user_id=api.encode_galaxy_user_id(decoded_id=user_id))
     if args.interactive:
         print("Complete.")
 
