@@ -29,7 +29,7 @@
   ansible.builtin.lineinfile:
     path: "{{ walle_bashrc }}"
     regexp: "^export {{ item.key }}="
-    line: 'export {{ item.key }}="{{ item.value}}"'
+    line: 'export {{ item.key }}="{{ item.value }}"'
   with_items: "{{ walle_envs_database }}"
 
 - name: Add env variables for user deletion (WallE)
