@@ -28,11 +28,17 @@
 - name: Add env variable for database (WallE)
   ansible.builtin.lineinfile:
     path: "{{ walle_bashrc }}"
-    line: "{{ item }}"
-  with_items:
-    - 'export MALWARE_LIB="{{ walle_malware_database_location }}/{{ walle_database_file }}"'
-    - 'export PGPASSFILE="{{ walle_pgpass_file }}"'
+    regexp: "^export {{ item.key }}="
+    line: 'export {{ item.key }}="{{ item.value }}"'
+  with_items: "{{ walle_envs_database }}"
 
+- name: Add env variables for user deletion (WallE)
+  ansible.builtin.lineinfile:
+    path: "{{ walle_bashrc }}"
+    regexp: "^export {{ item.key }}="
+    line: 'export {{ item.key }}="{{ item.value }}"'
+  with_items: "{{ walle_envs_user_deletion }}"
+  when: walle_delete_users
 
 - name: Create logfile (WallE)
   ansible.builtin.file:
@@ -79,4 +85,6 @@
       {% if walle_filesize_max %} --max-size {{ walle_filesize_max }} {% endif %}
       {% if walle_since_hours %} --since {{ walle_since_hours }} {% endif %}
       {% if walle_verbose %} -v {% endif %}
+      {% if walle_delete_users %} --delete-user {{ walle_delete_threshold }}
+      {% endif %}
       >> {{ walle_log_dir }}/walle.log 2>&1

@@ -13,6 +13,7 @@ import time
 import zlib
 
 import galaxy_jwd
+import requests
 import yaml
 from tqdm import tqdm
 
@@ -27,6 +28,45 @@ def convert_arg_to_byte(mb: str) -> int:
 
 def convert_arg_to_seconds(hours: str) -> int:
     return int(hours) * 60 * 60
+
+
+class Severity:
+    def __init__(self, number: int, name: str):
+        self.value = number
+        self.name = name
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, Severity):
+            raise ValueError("The other must be an instance of the Severity")
+        if self.value == other.value and self.name == other.name:
+            return True
+        else:
+            return False
+
+    def __le__(self, other) -> bool:
+        if not isinstance(other, Severity):
+            raise ValueError("The other must be an instance of the Severity")
+        if self.value <= other.value:
+            return True
+        else:
+            return False
+
+    def __ge__(self, other) -> bool:
+        if not isinstance(other, Severity):
+            raise ValueError("The other must be an instance of the Severity")
+        if self.value >= other.value:
+            return True
+        else:
+            return False
+
+
+VALID_SEVERITIES = (Severity(0, "LOW"), Severity(1, "MEDIUM"), Severity(2, "HIGH"))
+
+
+def convert_str_to_severity(test_level: str) -> Severity:
+    for level in VALID_SEVERITIES:
+        if (level.name.casefold()).__eq__(test_level.casefold()):
+            return level
 
 
 def make_parser() -> argparse.ArgumentParser:
@@ -64,6 +104,10 @@ def make_parser() -> argparse.ArgumentParser:
 
                 PGPASSFILE: path to .pgpass file (same as gxadmin's) in format:
                 <pg_host>:5432:*:<pg_user>:<pg_password>
+            The '--delete-user' flag requires additional environment variables:
+                GALAXY_BASE_URL: Instance hostname including scheme (https://examplegalaxy.org)
+                GALAXY_API_KEY: Galaxy API key with admin privileges
+                GALAXY_ROOT: Galaxy root directiory (e.g. /srv/galaxy)
             """,
         formatter_class=argparse.RawTextHelpFormatter,
     )
@@ -131,28 +175,43 @@ def make_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Show progress bar. Leave unset for cleaner logs and slightly higher performance",
     )
-
+    my_parser.add_argument(
+        "--delete-user",
+        metavar="MIN_SEVERITY",
+        choices=VALID_SEVERITIES,
+        type=convert_str_to_severity,
+        help="Delete user when severity level is equal or higher. \
+            Make sure that you know what the consequences are on your \
+            instance, when a user is set to deleted (e.g. when a user is purged automatically after deletion). \
+            Following additional environment variables are expected: \
+            GALAXY_API_KEY \
+            GALAXY_BASE_URL",
+    )
     return my_parser
 
 
 class Job:
     def __init__(
         self,
-        galaxy_id: int,
-        object_store_id: int,
         user_id: int,
         user_name: str,
+        user_mail: str,
         tool_id: str,
-        job_runner_name: str,
+        galaxy_id: int,
+        runner_id: int,
+        runner_name: str,
+        object_store_id: int,
         jwd=None,
     ) -> None:
-        self.galaxy_id = galaxy_id
-        self.object_store_id = object_store_id
-        self.jwd = jwd
         self.user_id = user_id
         self.user_name = user_name
+        self.user_mail = user_mail
         self.tool_id = tool_id
-        self.job_runner_name = job_runner_name
+        self.galaxy_id = galaxy_id
+        self.runner_id = runner_id
+        self.runner_name = runner_name
+        self.object_store_id = object_store_id
+        self.jwd = jwd
 
     def report_id_and_user_name(self) -> str:
         return f"{self.galaxy_id} {self.user_name}"
@@ -178,7 +237,7 @@ class Malware:
         malware_class: str,
         program: str,
         version: str,
-        severity: str,
+        severity: Severity,
         description: str,
         crc32: str,
         sha1: str,
@@ -211,7 +270,7 @@ def file_in_size_range(file_stat: os.stat_result, min_size=None, max_size=None) 
     return True
 
 
-def all_files_in_dir(dir: pathlib.Path, args) -> [pathlib.Path]:
+def all_files_in_dir(dir: pathlib.Path, args) -> list[pathlib.Path]:
     """
     Gets all files of given directory and its subdirectories and
     appends file to a list of pathlib.Path objects, if atime
@@ -220,20 +279,21 @@ def all_files_in_dir(dir: pathlib.Path, args) -> [pathlib.Path]:
     files = []
     for root, _, filenames in os.walk(dir):
         for filename in filenames:
-            file = pathlib.Path(os.path.join(root, filename))
-            file_stat = file.stat()
-            if file_in_size_range(
-                file_stat, args.min_size, args.max_size
-            ) and file_accessed_in_range(file_stat, args.since):
-                files.append(file)
+            try:
+                file = pathlib.Path(os.path.join(root, filename))
+                file_stat = file.stat()
+                if file_in_size_range(
+                    file_stat, args.min_size, args.max_size
+                ) and file_accessed_in_range(file_stat, args.since):
+                    files.append(file)
+            except FileNotFoundError:
+                pass
+
     return files
 
 
-def load_malware_lib_from_env(env=CHECKSUM_FILE_ENV) -> dict:
-    if not os.environ.get(env):
-        raise ValueError(env)
-    malware_lib_path = os.environ.get(env).strip()
-    with open(malware_lib_path, "r") as malware_yaml:
+def load_malware_lib_from_env(malware_file: pathlib.Path) -> dict:
+    with open(malware_file, "r") as malware_yaml:
         malware_lib = yaml.safe_load(malware_yaml)
     return malware_lib
 
@@ -255,8 +315,8 @@ def digest_file_sha1(chunksize: int, path: pathlib.Path) -> str:
 
 
 def scan_file_for_malware(
-    chunksize: int, file: pathlib.Path, lib: [Malware]
-) -> [Malware]:
+    chunksize: int, file: pathlib.Path, lib: list[Malware]
+) -> list[Malware]:
     """
     Returning a list of Malware, because
     it could potentially happen (even if it should not),
@@ -286,11 +346,12 @@ def report_matching_malware(job: Job, malware: Malware, path: pathlib.Path) -> s
     """
     Create log line depending on verbosity
     """
-    return f"{datetime.datetime.now()} {job.user_name} {job.galaxy_id} \
+    return f"{datetime.datetime.now()} {malware.severity.name} {job.user_id} {job.user_name} {job.user_mail} \
+{job.tool_id} {job.galaxy_id} {job.runner_id} {job.runner_name} {job.object_store_id} \
 {malware.malware_class} {malware.program} {malware.version} {path}"
 
 
-def construct_malware_list(malware_yaml: dict) -> [Malware]:
+def construct_malware_list(malware_yaml: dict) -> list[Malware]:
     """
     creates a flat list of malware objects, that hold all info
     The nested structure in yaml is for better optical structuring
@@ -304,9 +365,9 @@ def construct_malware_list(malware_yaml: dict) -> [Malware]:
                         malware_class=malware_class,
                         program=program,
                         version=version,
-                        severity=malware_yaml[malware_class][program][version][
-                            "severity"
-                        ],
+                        severity=convert_str_to_severity(
+                            malware_yaml[malware_class][program][version]["severity"]
+                        ),
                         description=malware_yaml[malware_class][program][version][
                             "description"
                         ],
@@ -326,31 +387,17 @@ class JWDGetter:
     This class is a workaround for calling 'galaxy_jwd.py's main function.
     """
 
-    def __init__(self) -> None:
+    def __init__(
+        self, galaxy_config_file: pathlib.Path, pulsar_app_conf: pathlib.Path
+    ) -> None:
         """
         Reads the storage backend configuration
         (might deserve it's own function in galaxy_jwd.py)
         """
-        if not os.environ.get("GALAXY_CONFIG_FILE"):
-            raise ValueError("Please set ENV GALAXY_CONFIG_FILE")
-        galaxy_config_file = os.environ.get("GALAXY_CONFIG_FILE").strip()
-
-        # Check if the given galaxy.yml file exists
-        if not os.path.isfile(galaxy_config_file):
-            raise ValueError(
-                f"The given galaxy.yml file {galaxy_config_file} does not exist"
-            )
-        if not os.environ.get("GALAXY_PULSAR_APP_CONF"):
-            raise ValueError("Please set ENV GALAXY_PULSAR_APP_CONF")
-        galaxy_pulsar_app_conf = os.environ.get("GALAXY_PULSAR_APP_CONF").strip()
-
         object_store_conf = galaxy_jwd.get_object_store_conf_path(galaxy_config_file)
         backends = galaxy_jwd.parse_object_store(object_store_conf)
-
         # Add pulsar staging directory (runner: pulsar_embedded) to backends
-        backends["pulsar_embedded"] = galaxy_jwd.get_pulsar_staging_dir(
-            galaxy_pulsar_app_conf
-        )
+        backends["pulsar_embedded"] = galaxy_jwd.get_pulsar_staging_dir(pulsar_app_conf)
         self.backends = backends
 
     # might deserve it's own function in galaxy_jwd.py
@@ -359,37 +406,13 @@ class JWDGetter:
             job.galaxy_id,
             [job.object_store_id],
             self.backends,
-            job.job_runner_name,
+            job.runner_name,
         )
         return jwd
 
 
 class RunningJobDatabase(galaxy_jwd.Database):
-    def __init__(self):
-        if not os.environ.get("PGDATABASE"):
-            raise ValueError("Please set ENV PGDATABASE")
-        db_name = os.environ.get("PGDATABASE").strip()
-
-        if not os.environ.get("PGUSER"):
-            raise ValueError("Please set ENV PGUSER")
-        db_user = os.environ.get("PGUSER").strip()
-
-        if not os.environ.get("PGHOST"):
-            raise ValueError("Please set ENV PGHOST")
-        db_host = os.environ.get("PGHOST").strip()
-
-        # Check if ~/.pgpass file exists and is not empty
-        if (
-            not os.path.isfile(os.path.expanduser("~/.pgpass"))
-            or os.stat(os.path.expanduser("~/.pgpass")).st_size == 0
-        ):
-            raise ValueError(
-                "Please create a ~/.pgpass file in format: "
-                "<pg_host>:5432:*:<pg_user>:<pg_password>"
-            )
-        db_password = galaxy_jwd.extract_password_from_pgpass(
-            pgpass_file=os.environ.get("PGPASSFILE").strip()
-        )
+    def __init__(self, db_host: str, db_name: str, db_user: str, db_password: str):
         super().__init__(
             db_name,
             db_user,
@@ -397,10 +420,13 @@ class RunningJobDatabase(galaxy_jwd.Database):
             db_password,
         )
 
-    def get_running_jobs(self, tool=None) -> [Job]:
+    def get_running_jobs(self, tool=None) -> list[Job]:
         query = f"""
-                SELECT id, object_store_id, tool_id, user_id, user, job_runner_name
-                FROM job
+                SELECT j.user_id, u.username, u.email, j.tool_id, j.id,
+                j.job_runner_external_id, j.job_runner_name, j.object_store_id
+                FROM
+                    job j
+                    INNER JOIN galaxy_user u ON j.user_id = u.id
                 WHERE state = 'running'
                 AND object_store_id IS NOT NULL
                 AND user_id IS NOT NULL
@@ -422,24 +448,72 @@ class RunningJobDatabase(galaxy_jwd.Database):
             sys.exit(1)
         running_jobs_list = []
         for (
-            job_id,
-            object_store_id,
-            tool_id,
             user_id,
             user_name,
-            job_runner_name,
+            user_mail,
+            tool_id,
+            job_id,
+            runner_id,
+            runner_name,
+            object_store_id,
         ) in running_jobs:
             running_jobs_list.append(
                 Job(
-                    galaxy_id=job_id,
-                    object_store_id=object_store_id,
-                    tool_id=tool_id,
                     user_id=user_id,
                     user_name=user_name,
-                    job_runner_name=job_runner_name,
+                    user_mail=user_mail,
+                    tool_id=tool_id,
+                    galaxy_id=job_id,
+                    runner_id=runner_id,
+                    runner_name=runner_name,
+                    object_store_id=object_store_id,
                 )
             )
         return running_jobs_list
+
+
+def get_path_from_env_or_error(env: str) -> pathlib.Path:
+    if os.environ.get(env):
+        if (path := pathlib.Path(os.environ.get(env).strip())).exists():
+            return path
+        else:
+            raise ValueError(f"Path for {env} is invalid")
+    else:
+        raise ValueError(f"Please set ENV {env}")
+
+
+def get_str_from_env_or_error(env: str) -> str:
+    if os.environ.get(env):
+        if len(from_env := os.environ.get(env).strip()) > 0:
+            return from_env
+        else:
+            raise ValueError(f"Path for {env} is invalid")
+    else:
+        raise ValueError(f"Please set ENV {env}")
+
+
+class GalaxyAPI:
+    def __init__(self, base_url: str, api_key: str) -> None:
+        self.base_url = base_url
+        self.api_key = api_key
+        self.auth_header = {"x-api-key": self.api_key}
+
+    def delete_user(self, encoded_user_id: str) -> bool:
+        url = f"{self.base_url}/api/users/{encoded_user_id}"
+        response = requests.delete(url=url, headers=self.auth_header)
+        if response.status_code == 200:
+            return True
+        else:
+            print(f"Failed to delete user {encoded_user_id}!")
+
+    def encode_galaxy_user_id(self, decoded_id: int) -> str:
+        url = f"{self.base_url}/api/configuration/encode/{decoded_id}"
+        response = requests.get(url=url, headers=self.auth_header)
+        if response.status_code != 200:
+            print(f"Failed to encode id {decoded_id}!")
+        else:
+            json_response = response.json()
+            return json_response["encoded_id"]
 
 
 def main():
@@ -447,15 +521,39 @@ def main():
     Miner Finder's main function. Shows a status bar while processing the jobs found in Galaxy
     """
     args = make_parser().parse_args()
-    jwd_getter = JWDGetter()
-    db = RunningJobDatabase()
-    malware_library = construct_malware_list(load_malware_lib_from_env())
+    galaxy_config_file = get_path_from_env_or_error("GALAXY_CONFIG_FILE")
+
+    jwd_getter = JWDGetter(
+        galaxy_config_file=galaxy_config_file,
+        pulsar_app_conf=get_path_from_env_or_error("GALAXY_PULSAR_APP_CONF"),
+    )
+    db = RunningJobDatabase(
+        db_host=get_str_from_env_or_error("PGHOST"),
+        db_password=galaxy_jwd.extract_password_from_pgpass(
+            get_path_from_env_or_error("PGPASSFILE")
+        ),
+        db_name=get_str_from_env_or_error("PGDATABASE"),
+        db_user=get_str_from_env_or_error("PGUSER"),
+    )
+    malware_library = construct_malware_list(
+        malware_yaml=load_malware_lib_from_env(
+            malware_file=get_path_from_env_or_error("MALWARE_LIB")
+        )
+    )
     jobs = db.get_running_jobs(args.tool)
+    if args.delete_user:
+        api = GalaxyAPI(
+            api_key=get_str_from_env_or_error("GALAXY_API_KEY"),
+            base_url=get_str_from_env_or_error("GALAXY_BASE_URL"),
+        )
+    delete_users = set()
+    report_users = set()
     if args.interactive:
         if args.verbose:
             print(
-                "TIMESTAMP GALAXY_USER JOB_ID \
-MALWARE_CLASS MALWARE MALWARE_VERSION PATH"
+                "TIMESTAMP MALWARE_SEVERITY USER_ID USER_NAME USER_MAIL TOOL_ID GALAXY_JOB_ID \
+                RUNNER_JOB_ID RUNNER_NAME OBJECT_STORE_ID MALWARE_CLASS \
+                MALWARE_NAME MALWARE_VERSION PATH"
             )
         else:
             print("GALAXY_USER JOB_ID")
@@ -475,8 +573,11 @@ MALWARE_CLASS MALWARE MALWARE_VERSION PATH"
                 )
                 if len(matching_malware) > 0:
                     print("\n")
-                    if args.verbose:
-                        for malware in matching_malware:
+                    for malware in matching_malware:
+                        # report only once
+                        if not args.verbose and job.user_id not in report_users:
+                            print(job.report_id_and_user_name())
+                        else:
                             print(
                                 report_matching_malware(
                                     job=job,
@@ -484,15 +585,19 @@ MALWARE_CLASS MALWARE MALWARE_VERSION PATH"
                                     path=file,
                                 )
                             )
-                    else:
-                        print(job.report_id_and_user_name())
-                        break
-
+                        report_users.add(job.user_id)
+                        if args.delete_user and job.user_id not in delete_users:
+                            if args.delete_user <= malware.severity:
+                                delete_users.add(job.user_id)
         else:
             print(
                 f"JWD for Job {job.galaxy_id} found but does not exist in FS",
                 file=sys.stderr,
             )
+    # Deletes users at the end, to report all malicious jobs of a user
+    for user_id in delete_users:
+        # add notification here
+        api.delete_user(encoded_user_id=api.encode_galaxy_user_id(decoded_id=user_id))
     if args.interactive:
         print("Complete.")
 
