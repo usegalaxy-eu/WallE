@@ -542,9 +542,8 @@ def main():
             api_key=get_str_from_env_or_error("GALAXY_API_KEY"),
             base_url=get_str_from_env_or_error("GALAXY_BASE_URL"),
         )
-        delete_users = set()
-    if not args.verbose:
-        report_users = set()
+    delete_users = set()
+    report_users = set()
     if args.interactive:
         if args.verbose:
             print(
@@ -571,9 +570,9 @@ def main():
                 if len(matching_malware) > 0:
                     print("\n")
                     for malware in matching_malware:
+                        # report only once
                         if not args.verbose and job.user_id not in report_users:
                             print(job.report_id_and_user_name())
-                            report_users.add(job.user_id)
                         else:
                             print(
                                 report_matching_malware(
@@ -582,6 +581,7 @@ def main():
                                     path=file,
                                 )
                             )
+                        report_users.add(job.user_id)
                         if args.delete_user and job.user_id not in delete_users:
                             if args.delete_user <= malware.severity:
                                 delete_users.add(job.user_id)
