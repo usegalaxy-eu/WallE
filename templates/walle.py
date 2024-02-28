@@ -279,12 +279,16 @@ def all_files_in_dir(dir: pathlib.Path, args) -> list[pathlib.Path]:
     files = []
     for root, _, filenames in os.walk(dir):
         for filename in filenames:
-            file = pathlib.Path(os.path.join(root, filename))
-            file_stat = file.stat()
-            if file_in_size_range(
-                file_stat, args.min_size, args.max_size
-            ) and file_accessed_in_range(file_stat, args.since):
-                files.append(file)
+            try:
+                file = pathlib.Path(os.path.join(root, filename))
+                file_stat = file.stat()
+                if file_in_size_range(
+                    file_stat, args.min_size, args.max_size
+                ) and file_accessed_in_range(file_stat, args.since):
+                    files.append(file)
+            except FileNotFoundError:
+                pass
+
     return files
 
 
