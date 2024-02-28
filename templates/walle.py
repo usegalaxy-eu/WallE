@@ -182,7 +182,7 @@ def make_parser() -> argparse.ArgumentParser:
         type=convert_str_to_severity,
         help="Delete user when severity level is equal or higher. \
             Make sure that you know what the consequences are on your \
-            instance, when a user is set to deleted. \
+            instance, when a user is set to deleted (e.g. when a user is purged automatically after deletion). \
             Following additional environment variables are expected: \
             GALAXY_API_KEY \
             GALAXY_BASE_URL",
