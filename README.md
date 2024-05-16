@@ -5,9 +5,9 @@ Keep your Galaxy job working directories (JWDs) clean.
 Python script that fetches (toolname filtered) running jobs, calculates checksums for all files in the jobworking directory and compares them to a database.  
 Deployed with Ansible.
 
-## Dependencies
+## Prerequisites
 This role expect several requirements.
-1. `galaxy_jwd.py` must exist in the directory of `walle_script_location`
+1. [galaxy_jwd.py](https://github.com/usegalaxy-eu/infrastructure-playbook/blob/master/roles/usegalaxy-eu.bashrc/files/galaxy_jwd.py) must exist in the directory of `walle_script_location`
 2. Python 3
 2. the python packages imported in `walle.py` and `galaxy_jwd.py` must be present
 3. Following environment vars must be set:
