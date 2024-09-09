@@ -1,9 +1,14 @@
 [![Super-Linter](https://github.com/usegalaxy-eu/WallE/actions/workflows/lint.yml/badge.svg)](https://github.com/marketplace/actions/super-linter)
 
 # WALL·E
-Keep your Galaxy job working directories (JWDs) clean.  
-Python script that fetches (toolname filtered) running jobs, calculates checksums for all files in the jobworking directory and compares them to a database.  
+
+Keep your Galaxy job working directories (JWDs) clean.
+
+WALL·E is a Python script that iterates over your (toolname filtered) running jobs, calculates checksums for all files in the job working directory (JWD)
+and compares them to a community-created [database](https://github.com/usegalaxy-eu/intergalactic-most-wanted-list) of malicious software.
 Deployed with Ansible.
+
+If you find new miners or other malicious stuff, please add those signatures to our [`intergalactic-most-wanted-list`](https://github.com/usegalaxy-eu/intergalactic-most-wanted-list).
 
 ## Prerequisites
 This role expect several requirements.
