@@ -364,7 +364,6 @@ class Job:
             self.files[index],
         )
 
-
 class Case:
     def __init__(
         self,
