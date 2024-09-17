@@ -283,7 +283,7 @@ class Job:
         runner_name: str,
         object_store_id: int,
         jwd=pathlib.Path(),
-        files=None,
+        files=[],
     ) -> None:
         self.user_id = user_id
         self.user_name = user_name
@@ -294,7 +294,7 @@ class Job:
         self.runner_name = runner_name
         self.object_store_id = object_store_id
         self.jwd = jwd
-        self.files = files | []
+        self.files = files
 
     def set_jwd_path(self, jwd: str) -> bool:
         jwd_path = pathlib.Path(jwd)
@@ -339,67 +339,70 @@ class Job:
         except OSError:
             pass
 
-    def report_id_and_user_name(self) -> UserIdMail:
-        logger.info(self.user_id, self.user_name)
-        return {self.user_id: self.user_mail}
-
-    def report_matching_malware(self, index: int, malware: Malware):
-        """
-        Create log line depending on verbosity
-        """
-        logger.debug(
-            get_iso_time_utc_add_months(0),
-            malware.severity.name,
-            self.user_id,
-            self.user_name,
-            self.user_mail,
-            self.tool_id,
-            self.galaxy_id,
-            self.runner_id,
-            self.runner_name,
-            self.object_store_id,
-            malware.malware_class,
-            malware.program,
-            malware.version,
-            self.files[index],
-        )
 
 class Case:
     def __init__(
         self,
+        verbose: bool,
         job: Job,
         malware: Malware,
         fileindex: int,
         reported_users: UserIdMail,
         delete_users: UserIdMail,
-        severity: Severity,
     ) -> None:
         self.job = job
+        self.verbose = verbose
         self.malware = malware
         self.fileindex = fileindex
         self.reported_users = reported_users
         self.delete_users = delete_users
-        self.severity = severity
 
-    def report_according_to_verbosity(self, verbose: bool) -> UserIdMail:
-        if verbose:
-            self.job.report_matching_malware(index=self.fileindex, malware=self.malware)
+    def report_according_to_verbosity(self) -> UserIdMail:
+        if self.verbose:
+            self.report_matching_malware()
             return {}
         elif self.job.user_id not in self.reported_users:
-            return self.job.report_id_and_user_name()
+            return self.report_id_and_user_name()
         else:
             return {}
 
-    def mark_user_for_deletion(self, delete: bool) -> UserIdMail:
-        if delete and self.job.user_id not in self.delete_users:
-            return self.check_severity_level()
+    def mark_user_for_deletion(self, severity: Severity) -> UserIdMail:
+        if self.job.user_id not in self.delete_users:
+            return self.check_severity_level(severity)
         return {}
 
-    def check_severity_level(self) -> UserIdMail:
-        if self.malware.severity >= self.severity:
+    def check_severity_level(self, severity: Severity) -> UserIdMail:
+        if self.malware.severity >= severity:
+            logger.debug(f"User {self.job.user_id} marked for deletion")
             return {self.job.user_id: self.job.user_mail}
         else:
             return {}
+
+    def report_id_and_user_name(self) -> UserIdMail:
+        logger.info(self.job.user_id, self.job.user_name)
+        return {self.job.user_id: self.job.user_mail}
+
+    def report_matching_malware(self):
+        """
+        Create log line depending on verbosity
+        """
+        logger.debug(
+            "%s %s %s %s %s %s %s %s %s %s %s %s %s %s",
+            get_iso_time_utc_add_months(0),
+            self.malware.severity.name,
+            self.job.user_id,
+            self.job.user_name,
+            self.job.user_mail,
+            self.job.tool_id,
+            self.job.galaxy_id,
+            self.job.runner_id,
+            self.job.runner_name,
+            self.job.object_store_id,
+            self.malware.malware_class,
+            self.malware.program,
+            self.malware.version,
+            self.job.files[self.fileindex],
+        )
 
 
 def file_accessed_in_range(
@@ -529,7 +532,7 @@ class JWDGetter:
 
 
 class RunningJobDatabase(galaxy_jwd.Database):
-    def __init__(self, db_host: str, db_name: str, db_user: str, db_password: str):
+    def __init__(self, db_name: str, db_host=None, db_user=None, db_password=None):
         super().__init__(
             db_name,
             db_user,
@@ -558,7 +561,7 @@ class RunningJobDatabase(galaxy_jwd.Database):
         # Create a dictionary with job_id as key and object_store_id, and
         # update_time as values
         if not running_jobs:
-            logger.warn(f"No running jobs with tool_id like {tool} found.")
+            logger.warning(f"No running jobs with tool_id like {tool} found.")
             sys.exit(0)
         running_jobs_list = []
         for (
@@ -651,6 +654,7 @@ class GalaxyAPI:
         url = f"{self.base_url}/api/notifications"
         response = requests.post(
             url=url,
+            headers=self.auth_header,
             json={
                 "recipients": {
                     "user_ids": [encoded_user_id],
@@ -659,7 +663,7 @@ class GalaxyAPI:
                 },
                 "notification": {
                     "source": "string",
-                    "category": "notification",
+                    "category": "message",
                     "variant": "urgent",
                     "content": {
                         "subject": self.delete_subject,
@@ -676,20 +680,23 @@ class GalaxyAPI:
         if response.status_code == 200:
             if response.json()["total_notifications_sent"] == 1:
                 return True
+        logger.error("Can not notify user %s, response from Galaxy: %s", encoded_user_id, response.content)
         return False
 
     def delete_user(self, encoded_user_id: UserId) -> bool:
         url = f"{self.base_url}/api/users/{encoded_user_id}"
         response = requests.delete(url=url, headers=self.auth_header)
-        if response.status_code == 200:
-            return True
-        else:
+        if response.status_code != 200:
+            logger.error("Can not encode delete user %s, response from Galaxy: %s", encoded_user_id, response.content)
             return False
+        else:
+            return True
 
     def encode_galaxy_user_id(self, decoded_id: UserId) -> str:
         url = f"{self.base_url}/api/configuration/encode/{decoded_id}"
         response = requests.get(url=url, headers=self.auth_header)
         if response.status_code != 200:
+            logger.error("Can not encode user id, response from Galaxy: %s", response.content)
             return ""
         else:
             json_response = response.json()
@@ -701,20 +708,30 @@ class GalaxyAPI:
             logger.debug(f"User {user_id} notified.")
             if self.delete_user(encoded_user_id):
                 logger.info(f"User {user_id} notified and deleted.")
-        else:
-            logger.error(f"Failed to delete user {encoded_user_id}!")
 
 
 def print_table_header(verbose: bool, interactive: bool):
     if interactive:
         if verbose:
             logger.debug(
-                "TIMESTAMP MALWARE_SEVERITY USER_ID USER_NAME USER_MAIL TOOL_ID GALAXY_JOB_ID \
-                RUNNER_JOB_ID RUNNER_NAME OBJECT_STORE_ID MALWARE_CLASS \
-                MALWARE_NAME MALWARE_VERSION PATH"
+                "TIMESTAMP MALWARE_SEVERITY USER_ID USER_NAME USER_MAIL \
+                    TOOL_ID GALAXY_JOB_ID RUNNER_JOB_ID RUNNER_NAME \
+                    OBJECT_STORE_ID MALWARE_CLASS MALWARE_NAME \
+                    MALWARE_VERSION PATH"
             )
         else:
             logger.info("GALAXY_USER JOB_ID")
+
+
+def get_database_with_password() -> RunningJobDatabase:
+    return RunningJobDatabase(
+        db_host=get_str_from_env_or_error("PGHOST"),
+        db_password=galaxy_jwd.extract_password_from_pgpass(
+            get_path_from_env_or_error("PGPASSFILE")
+        ),
+        db_name=get_str_from_env_or_error("PGDATABASE"),
+        db_user=get_str_from_env_or_error("PGUSER"),
+    )
 
 
 def main():
@@ -728,14 +745,7 @@ def main():
         galaxy_config_file=get_path_from_env_or_error("GALAXY_CONFIG_FILE"),
         pulsar_app_conf=get_path_from_env_or_error("GALAXY_PULSAR_APP_CONF"),
     )
-    db = RunningJobDatabase(
-        db_host=get_str_from_env_or_error("PGHOST"),
-        db_password=galaxy_jwd.extract_password_from_pgpass(
-            get_path_from_env_or_error("PGPASSFILE")
-        ),
-        db_name=get_str_from_env_or_error("PGDATABASE"),
-        db_user=get_str_from_env_or_error("PGUSER"),
-    )
+    db = get_database_with_password()
     malware_library = construct_malware_list(
         malware_yaml=load_malware_lib_from_env(
             malware_file=get_path_from_env_or_error("MALWARE_LIB")
@@ -746,14 +756,7 @@ def main():
     reported_users: UserIdMail = {}
 
     print_table_header(verbose=args.verbose, interactive=args.interactive)
-
-    for job in tqdm(
-        jobs,
-        disable=(not args.interactive),
-        desc="Processing jobs…",
-        ascii=False,
-        ncols=75,
-    ):
+    for job in jobs:
         if not job.set_jwd_path(jwd_getter.get_jwd_path(job)):
             continue
         if not job.check_if_jwd_exists_and_get_files(args):
@@ -765,16 +768,15 @@ def main():
             for malware in matching_malware:
                 case = Case(
                     job=job,
+                    verbose=args.verbose,
                     malware=malware,
                     fileindex=index,
                     reported_users=reported_users,
-                    severity=args.severity,
                     delete_users=delete_users,
                 )
-                reported_users = case.report_according_to_verbosity(
-                    verbose=args.verbose
-                )
-                delete_users = case.mark_user_for_deletion(args.delete_user)
+                reported_users = case.report_according_to_verbosity()
+                if args.delete_user:
+                    delete_users = case.mark_user_for_deletion(args.delete_user)
     # Deletes users at the end, to report all malicious jobs of a user
     if args.delete_user:
         api = GalaxyAPI(
@@ -782,15 +784,15 @@ def main():
             base_url=get_str_from_env_or_error("GALAXY_BASE_URL"),
             admin_email=get_str_from_env_or_error("GALAXY_ADMIN_EMAIL"),
             delete_subject=os.environ.get(
-                "WALLE_USER_DELETION_SUBJECT", default=DEFAULT_SUBJECT
+                "WALLE_USER_DELETION_SUBJECT", DEFAULT_SUBJECT
             ),
             delete_message=os.environ.get(
-                "WALLE_USER_DELETION_MESSAGE", default=DEFAULT_MESSAGE
+                "WALLE_USER_DELETION_MESSAGE", DEFAULT_MESSAGE
             ),
             notification_expiration_months=int(
                 os.environ.get(
                     "WALLE_NOTIFICATION_EXP_MONTHS",
-                    default=DEFAULT_NOTIFICATION_EXPIRATION,
+                    DEFAULT_NOTIFICATION_EXPIRATION,
                 )
             ),
         )
