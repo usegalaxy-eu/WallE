@@ -33,7 +33,6 @@ This means your jobs were terminated and you can not login anymore.
 However it is possible to restore the account and its data.
 If you think your account was deleted due to an error, please contact
 """
-DEFAULT_NOTIFICATION_EXPIRATION = 6
 ONLY_ONE_INSTANCE = "The other must be an instance of the Severity"
 
 UserId = str
@@ -54,18 +53,6 @@ def convert_arg_to_byte(mb: str) -> int:
 
 def convert_arg_to_seconds(hours: str) -> float:
     return float(hours) * 60 * 60
-
-
-def get_iso_time_utc_add_months(months_in_future: int):
-    """
-    Get the current UTC time and format it to ISO 8601 format
-    """
-    calculated_time = datetime.now(timezone.utc) + relativedelta(
-        months=months_in_future
-    )
-    formatted_time = calculated_time.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
-    return formatted_time
-
 
 class Severity:
     def __init__(self, number: int, name: str):
@@ -387,8 +374,7 @@ class Case:
         Create log line depending on verbosity
         """
         logger.debug(
-            "%s %s %s %s %s %s %s %s %s %s %s %s %s %s",
-            get_iso_time_utc_add_months(0),
+            "%s %s %s %s %s %s %s %s %s %s %s %s %s",
             self.malware.severity.name,
             self.job.user_id,
             self.job.user_name,
@@ -641,14 +627,12 @@ class GalaxyAPI:
         admin_email: str,
         delete_subject: str,
         delete_message: str,
-        notification_expiration_months: int,
     ) -> None:
         self.base_url = base_url
         self.api_key = api_key
         self.auth_header = {"x-api-key": self.api_key}
         self.delete_subject = delete_subject
         self.delete_message = delete_message
-        self.notification_expiration_months = notification_expiration_months
 
     def notify_user(self, encoded_user_id: UserId) -> bool:
         url = f"{self.base_url}/api/notifications"
@@ -670,10 +654,6 @@ class GalaxyAPI:
                         "message": self.delete_message,
                         "category": "message",
                     },
-                    "publication_time": get_iso_time_utc_add_months(0),
-                    "expiration_time": get_iso_time_utc_add_months(
-                        self.notification_expiration_months
-                    ),
                 },
             },
         )
@@ -735,9 +715,6 @@ def get_database_with_password() -> RunningJobDatabase:
 
 
 def main():
-    """
-    Miner Finder's main function. Shows a status bar while processing the jobs found in Galaxy
-    """
     args = make_parser().parse_args()
     logger.setLevel(logging.DEBUG if args.verbose else logging.INFO)
 
@@ -788,13 +765,7 @@ def main():
             ),
             delete_message=os.environ.get(
                 "WALLE_USER_DELETION_MESSAGE", DEFAULT_MESSAGE
-            ),
-            notification_expiration_months=int(
-                os.environ.get(
-                    "WALLE_NOTIFICATION_EXP_MONTHS",
-                    DEFAULT_NOTIFICATION_EXPIRATION,
-                )
-            ),
+            )
         )
         for user_id in delete_users:
             # add notification here
