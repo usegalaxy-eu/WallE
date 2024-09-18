@@ -25,8 +25,12 @@
     version: "{{ walle_malware_database_version }}"
   ignore_errors: yes
 
+- name: Touch walle .bashrc file
+  file:
+    path: "{{ walle_bashrc }}"
+    state: touch
 
-- name: Add env variable for database (WallE)
+- name: Add env variables to WallE .bashrc
   ansible.builtin.lineinfile:
     path: "{{ walle_bashrc }}"
     regexp: "^export {{ item.key }}="
