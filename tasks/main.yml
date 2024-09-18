@@ -23,6 +23,7 @@
     repo: "{{ walle_malware_repo }}"
     dest: "{{ walle_malware_database_location }}"
     version: "{{ walle_malware_database_version }}"
+  ignore_errors: yes
 
 
 - name: Add env variable for database (WallE)
@@ -84,7 +85,8 @@
       {{ walle_filesize_min }} {% endif %}
       {% if walle_filesize_max %} --max-size {{ walle_filesize_max }} {% endif %}
       {% if walle_since_hours %} --since {{ walle_since_hours }} {% endif %}
-      {% if walle_verbose %} -v {% endif %}
+      {% if walle_verbose %} --verbose {% endif %}
+      {% if walle_debug %} --debug {% endif %}
       {% if walle_delete_users %} --delete-user {{ walle_delete_threshold }}
       {% endif %}
       >> {{ walle_log_dir }}/walle.log 2>&1

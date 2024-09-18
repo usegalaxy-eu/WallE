@@ -47,6 +47,7 @@ walle_envs_user_deletion:
 # walle_galaxy_url: #galaxy_hostname, no leading slash
 # walle_tool: <string to filter tool ids in database job table>
 walle_verbose: false
+walle_debug: false
 
 # Cron
 walle_cron_day: "*"

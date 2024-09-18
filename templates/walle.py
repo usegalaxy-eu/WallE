@@ -1,7 +1,15 @@
 #!/usr/bin/env python
 
+"""Keep your system clean!
+
+A command line script that iterates over the currently running jobs and stops
+them as well as logs the user, when a file in the JWD matches to a list of
+hashes.
+"""
+
 import argparse
 import hashlib
+import logging
 import os
 import pathlib
 import sys
@@ -13,6 +21,8 @@ from typing import Dict
 import galaxy_jwd
 import requests
 import yaml
+
+logger = logging.getLogger(__name__)
 
 CHECKSUM_FILE_ENV = "MALWARE_LIB"
 
@@ -188,6 +198,12 @@ Use like 'grep' after the gxadmin query queue-details command.",
         "-v", "--verbose", action="store_true", help="Report details for every match."
     )
     my_parser.add_argument(
+        "-d",
+        "--debug",
+        action="store_true",
+        help="Emit additional log messages for debugging Wall-E.",
+    )
+    my_parser.add_argument(
         "-i",
         "--interactive",
         action="store_true",
@@ -299,21 +315,22 @@ class Job:
         self, args: argparse.Namespace, dirpath: str, filenames: list[str]
     ):
         for filename in filenames:
-            file = pathlib.Path(os.path.join(dirpath, filename))
-            if not os.path.islink(file):
-                self.check_if_file_in_range_and_accessed(args=args, filepath=file)
-
-    def check_if_file_in_range_and_accessed(
-        self, filepath: pathlib.Path, args: argparse.Namespace
-    ):
-        try:
-            file_stat = filepath.stat()
-            if file_in_size_range(
-                file_stat, args.min_size, args.max_size
-            ) and file_accessed_in_range(file_stat, args.since):
-                self.files.append(filepath)
-        except OSError:
-            pass
+            try:
+                if os.path.islink(filename):
+                    continue
+                file = pathlib.Path(os.path.join(root, filename))
+                file_stat = file.stat()
+                if not file_in_size_range(
+                    file_stat, args.min_size, args.max_size
+                ):
+                    logger.debug(f"File {file} not in size range")
+                elif not file_accessed_in_range(file_stat, args.since):
+                    logger.debug(f"File {file} not in access date range")
+                else:
+                    files.append(file)
+            except (FileNotFoundError, OSError):
+                pass
+    return files
 
 
 class Case:
@@ -436,17 +453,29 @@ def scan_file_for_malware(
     """
     matches = []
     crc32 = digest_file_crc32(chunksize, file)
+    logger.debug(f"File {file} calculated CRC32: {crc32}")
     sha1 = None
     for malware in lib:
         if malware.crc32 == crc32:
+            logger.debug(f"File {file} CRC32 matches {malware.program} {malware.version}")
             if sha1 is None:
                 sha1 = digest_file_sha1(chunksize, file)
             if malware.sha1 == sha1:
                 matches.append(malware)
+            else:
+                logger.debug(
+                    f"File {file} SHA1 does not match {malware.program} {malware.version}"
+                )
     return matches
 
 
-def construct_malware_list(malware_yaml: dict) -> list[Malware]:
+def report_matching_malware(job: Job, malware: Malware, path: pathlib.Path) -> str:
+    return (f"Job user: {job.user_name} Job ID: {job.galaxy_id}"
+            f"{malware.malware_class} {malware.program} {malware.version}"
+            f" {path}")
+
+
+def construct_malware_list(malware_yaml: dict) -> [Malware]:
     """
     creates a flat list of malware objects, that hold all info
     The nested structure in yaml is for better optical structuring
@@ -535,9 +564,14 @@ class RunningJobDatabase(galaxy_jwd.Database):
         self.conn.close()
         # Create a dictionary with job_id as key and object_store_id, and
         # update_time as values
-        if not running_jobs:
-            logger.warning("No running jobs with tool_id like '%s' found.", tool)
-            sys.exit(0)
+        if running_jobs:
+            logger.info(f"Found {len(running_jobs)} running jobs matching '{tool}'")
+        else:
+            logger.info(
+                f"No running jobs with tool_id like {tool} found.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
         running_jobs_list = []
         for (
             user_id,
@@ -571,98 +605,62 @@ def evaluate_match_for_deletion(
     severity: Severity,
 ) -> UserIdMail:
     """
-    If in verbose mode, print detailed information for every match. No updates on 'reported' needed.
+    Miner Finder's main function. Shows a status bar while processing the jobs
+    found in Galaxy.
     """
-    if job.user_id not in delete_users and (severity <= match.severity):
-        return {job.user_id: job.user_mail}
-    return {}
+    args = make_parser().parse_args()
+    logging.basicConfig(
+        level=logging.DEBUG if args.debug else logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s'
+    )
+    logger.info("Starting scan...")
+    jwd_getter = JWDGetter()
+    db = RunningJobDatabase()
+    malware_library = construct_malware_list(load_malware_lib_from_env())
+    jobs = db.get_running_jobs(args.tool)
+    if args.interactive:
+        if args.verbose:
+            logger.info(
+                "TIMESTAMP GALAXY_USER JOB_ID \
+MALWARE_CLASS MALWARE MALWARE_VERSION PATH"
+            )
+        else:
+            logger.info("GALAXY_USER JOB_ID")
+    for job in tqdm(
+        jobs,
+        disable=(not args.interactive),
+        desc="Processing jobs…",
+        ascii=False,
+        ncols=75,
+    ):
+        jwd_path = jwd_getter.get_jwd_path(job)
+        if pathlib.Path(jwd_path).exists():
+            logger.debug(f"Scanning JWD: {jwd_path}")
+            job.jwd = pathlib.Path(jwd_path)
+            for file in all_files_in_dir(job.jwd, args):
+                logger.debug(f"Scanning file: {file}")
+                matching_malware = scan_file_for_malware(
+                    chunksize=args.chunksize, file=file, lib=malware_library
+                )
+                if len(matching_malware) > 0:
+                    print("\n")
+                    if args.verbose:
+                        for malware in matching_malware:
+                            logger.info(
+                                report_matching_malware(
+                                    job=job,
+                                    malware=malware,
+                                    path=file,
+                                )
+                            )
+                    else:
+                        logger.info(job.report_id_and_user_name())
+                        break
 
-
-def get_path_from_env_or_error(env: str) -> pathlib.Path:
-    try:
-        os.environ.get(env)
-        try:
-            (path := pathlib.Path(os.environ.get(env, "").strip())).exists()
-            return path
-        except ValueError:
-            logger.error(f"Path for %s is invalid", env)
-            raise ValueError
-    except ValueError:
-        logger.error(f"Please set ENV %s", env)
-        raise ValueError
-
-
-def get_str_from_env_or_error(env: str) -> str:
-    try:
-        os.environ.get(env)
-        try:
-            if len(from_env := os.environ.get(env, "").strip()) == 0:
-                raise ValueError
-            else:
-                return from_env
-        except ValueError:
-            logger.error(f"Path for %s is invalid", env)
-            raise ValueError
-    except ValueError:
-        logger.error(f"Please set ENV %s", env)
-        raise ValueError
-
-
-class GalaxyAPI:
-    def __init__(
-        self,
-        base_url: str,
-        api_key: str,
-        delete_subject: str,
-        delete_message: str,
-    ) -> None:
-        self.base_url = base_url
-        self.api_key = api_key
-        self.auth_header = {"x-api-key": self.api_key}
-        self.delete_subject = delete_subject
-        self.delete_message = delete_message
-
-    def notify_user(self, encoded_user_id: UserId) -> bool:
-        url = f"{self.base_url}/api/notifications"
-        response = requests.post(
-            url=url,
-            headers=self.auth_header,
-            json={
-                "recipients": {
-                    "user_ids": [encoded_user_id],
-                    "group_ids": [],
-                    "role_ids": [],
-                },
-                "notification": {
-                    "source": "string",
-                    "category": "message",
-                    "variant": "urgent",
-                    "content": {
-                        "subject": self.delete_subject,
-                        "message": self.delete_message,
-                        "category": "message",
-                    },
-                },
-            },
-        )
-        if response.status_code == 200:
-            if response.json()["total_notifications_sent"] == 1:
-                return True
-        logger.error(
-            "Can not notify user %s, response from Galaxy: %s",
-            encoded_user_id,
-            response.content,
-        )
-        return False
-
-    def delete_user(self, encoded_user_id: UserId) -> bool:
-        url = f"{self.base_url}/api/users/{encoded_user_id}"
-        response = requests.delete(url=url, headers=self.auth_header)
-        if response.status_code != 200:
-            logger.error(
-                "Can not encode delete user %s, response from Galaxy: %s",
-                encoded_user_id,
-                response.content,
+        else:
+            logger.warning(
+                f"JWD for Job {job.galaxy_id} found but does not exist in FS",
+                file=sys.stderr,
             )
             return False
         else:
@@ -767,7 +765,7 @@ def main():
             api.encode_id_notify_and_delete_user(user_id)
 
     if args.interactive:
-        logger.debug("Complete.")
+        logger.info("Complete.")
 
 
 if __name__ == "__main__":
