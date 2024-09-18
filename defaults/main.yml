@@ -12,7 +12,7 @@ walle_log_dir: /var/log/walle
 walle_script_location: /usr/local/bin/walle.py
 
 # Script args
-walle_filesize_min: 1
+walle_filesize_min: 0
 walle_filesize_max: 10
 walle_since_hours: 24
 walle_envs_database:
@@ -37,8 +37,10 @@ walle_envs_user_deletion:
     value: "{{ walle_galaxy_url }}"
   - key: GALAXY_CONFIG_FILE
     value: "{{ galaxy_config_dir }}/galaxy.yml"
-  - key: GALAXY_LIB
-    value: "{{ galaxy_root }}/server/lib"
+#  - key: GALAXY_USER_DELETION_MESSAGE
+#    value: "Your personalized message"
+#  - key: GALAXY_USER_DELETION_SUBJECT
+#    value: "Your personalized subject line"
 # walle_api_key: #admin api key to delete users, goes to VAULT
 # walle_galaxy_url: #galaxy_hostname, no leading slash
 # walle_tool: <string to filter tool ids in database job table>

@@ -1,7 +1,4 @@
 #!/usr/bin/env python
-# Keep your system clean!
-# A command line script that iterates over the currently running jobs and stops them as well as logs the user,
-# when a file in the JWD matches to a list of hashes
 
 import argparse
 import hashlib
@@ -11,9 +8,6 @@ import sys
 import time
 import zlib
 import logging
-from argparse import RawTextHelpFormatter
-from datetime import datetime, timezone
-from dateutil.relativedelta import relativedelta
 from typing import Dict
 
 import galaxy_jwd
@@ -96,10 +90,29 @@ def make_parser() -> argparse.ArgumentParser:
     my_parser = argparse.ArgumentParser(
         prog="WALL·E",
         description="""
-            Loads a yaml malware library with CRC32 and SHA1 hashes as arguments
-            from the environment variable "MALWARE_LIB",
-            searches in JWDs of currently running jobs for matching files
-            and reports jobs, users and malware details if specified.
+            Galaxy's Static Malware Scanner
+
+            DESCRIPTION
+            Loads a yaml malware library with CRC32 and SHA1 hashes
+            from the environment variable "MALWARE_LIB".
+            Gets a list of running jobs from Galaxy's database,
+            optionally filtered by a '--tool <str>' substring.
+            Then iterates over the jobs, scans all files in the Job Working Directory,
+            optionally filtered by size and access time,
+            for files that match both hashes and reports details to stdout.
+            If '--delete-user' flag is set it notifies and deletes the user.
+
+            REQUIREMENTS
+            galaxy_jwd.py as well as all other imported packages must be present.
+            The following environment variables (same as gxadmin's) should be set:
+                GALAXY_CONFIG_FILE: Path to the galaxy.yml file
+                PGDATABASE: Name of the Galaxy database
+                PGUSER: Galaxy database user
+                PGHOST: Galaxy database host
+                PGPASSFILE: path to .pgpass file (same as gxadmin's) in format:
+                <pg_host>:5432:*:<pg_user>:<pg_password>
+
+            MALWARE LIBRARY SCHEMA
             The malware library file has the following schema:
                 class:
                     program:
@@ -119,23 +132,6 @@ def make_parser() -> argparse.ArgumentParser:
             e.g. with:
             gzip -1 -c /path/to/file | tail -c8 | hexdump -n4 -e '"%u"'
             ----------------------------------------------------------------
-
-            The following ENVs (same as gxadmin's) should be set:
-                GALAXY_CONFIG_FILE: Path to the galaxy.yml file
-                GALAXY_LOG_DIR: Path to the Galaxy log directory
-                PGDATABASE: Name of the Galaxy database
-                PGUSER: Galaxy database user
-                PGHOST: Galaxy database host
-                PGPASSFILE: path to .pgpass file (same as gxadmin's) in format:
-                <pg_host>:5432:*:<pg_user>:<pg_password>
-
-            The '--delete-user' flag requires additional environment variables:
-                GALAXY_BASE_URL: Instance hostname including scheme (https://examplegalaxy.org)
-                GALAXY_ADMIN_EMAIL: The email users can contact to file complaints
-                GALAXY_API_KEY: Galaxy API key with admin privileges
-                GALAXY_ROOT: Galaxy root directiory (e.g. /srv/galaxy)
-                WALLE_USER_DELETION_MESSAGE: The message Galaxy should send as notification to a user before it deletes their account
-                WALLE_USER_DELETION_SUBJECT: The message's subject line.
             """,
         formatter_class=argparse.RawTextHelpFormatter,
     )
@@ -192,14 +188,13 @@ Use like 'grep' after the gxadmin query queue-details command.",
         "-v",
         "--verbose",
         action="store_true",
-        help="Report not only the job and user ID that matched, but also Path of matched file and malware info.\n \
-If set, the scanning process will quit after the first match in a JWD to save resources.",
+        help="Report details for every match."
     )
     my_parser.add_argument(
         "-i",
         "--interactive",
         action="store_true",
-        help="Show progress bar. Leave unset for cleaner logs and slightly higher performance",
+        help="Show table header.",
     )
     my_parser.add_argument(
         "--delete-user",
@@ -208,11 +203,15 @@ If set, the scanning process will quit after the first match in a JWD to save re
         type=convert_str_to_severity,
         help="Delete user when the found malware's severity level is equal or higher than this value.\n \
 Possible values are 'LOW', 'MEDIUM' or 'HIGH'.\n \
+This feature requires Galaxy's notification framework to be enabled.\n \
 Make sure that you know the consequences on your instance, especially regarding GDPR and\n \
 what happens when a user is set to deleted (e.g. when a user is purged automatically after deletion).\n \
 Following additional environment variables are expected:\n \
-GALAXY_API_KEY\n \
-GALAXY_BASE_URL",
+GALAXY_BASE_URL: Instance hostname including scheme (https://examplegalaxy.org)\n \
+GALAXY_API_KEY: Galaxy API key with admin privileges\n \
+Optional, for default see documentation:\n \
+WALLE_USER_DELETION_MESSAGE: Message that tells the user why their account is deleted.\n \
+WALLE_USER_DELETION_SUBJECT: The message's subject line."
     )
     return my_parser
 
@@ -617,7 +616,6 @@ class GalaxyAPI:
         self,
         base_url: str,
         api_key: str,
-        admin_email: str,
         delete_subject: str,
         delete_message: str,
     ) -> None:
@@ -760,7 +758,6 @@ def main():
         api = GalaxyAPI(
             api_key=get_str_from_env_or_error("GALAXY_API_KEY"),
             base_url=get_str_from_env_or_error("GALAXY_BASE_URL"),
-            admin_email=get_str_from_env_or_error("GALAXY_ADMIN_EMAIL"),
             delete_subject=os.environ.get(
                 "WALLE_USER_DELETION_SUBJECT", DEFAULT_SUBJECT
             ),
