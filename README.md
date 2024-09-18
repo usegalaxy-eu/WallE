@@ -11,11 +11,11 @@ Deployed with Ansible.
 If you find new miners or other malicious stuff, please add those signatures to our [`intergalactic-most-wanted-list`](https://github.com/usegalaxy-eu/intergalactic-most-wanted-list).
 
 ## Prerequisites
-This role expect several requirements.
-1. [galaxy_jwd.py](https://github.com/usegalaxy-eu/infrastructure-playbook/blob/master/roles/usegalaxy-eu.bashrc/files/galaxy_jwd.py) must exist in the directory of `walle_script_location`
-2. Python 3
-2. the python packages imported in `walle.py` and `galaxy_jwd.py` must be present
-3. Following environment vars must be set:
+This role expects several requirements:
+
+1. Python 3
+1. The python dependencies in `walle.py` and `galaxy_jwd.py` must be available (perhaps in the `walle_virtualenv`)
+1. Following environment vars must be set:
     - `GALAXY_CONFIG_FILE`: Path to the galaxy.yml file
     - `PGDATABASE`: Name of the Galaxy database
     - `PGUSER`: Galaxy database user
@@ -34,7 +34,7 @@ This role expect several requirements.
 For ansible details consult `defaults/main.yml`, it should be pretty much self-explanatory.
 
 ## Usage
-From the tools help command:
+From the tool's help command:
 ~~~
 usage: WALL·E [-h] [--chunksize CHUNKSIZE] [--min-size MIN_SIZE_MB] [--max-size MAX_SIZE_MB] [--since SINCE] [--tool TOOL] [-v] [-i] [--delete-user MIN_SEVERITY]
 
@@ -86,6 +86,7 @@ optional arguments:
   -h, --help            show this help message and exit
   --chunksize CHUNKSIZE
                         Chunksize in MiB for hashing the files in JWDs, defaults to 100 MiB
+  --kill                Kill malicious jobs with gxadmin.
   --min-size MIN_SIZE_MB
                         Minimum filesize im MB to limit the files to scan. The check will be skipped if value is 0 (default)
   --max-size MAX_SIZE_MB
@@ -96,6 +97,7 @@ optional arguments:
   --tool TOOL           A string to filter tools in the tool_id column of currently running jobs.
                          Use like 'grep' after the gxadmin query queue-details command.
   -v, --verbose         Report details for every match.
+  -d, --debug           Emit additional log messages for debugging Wall-E.
   -i, --interactive     Show table header.
   --delete-user MIN_SEVERITY
                         Delete user when the found malware's severity level is equal or higher than this value.
