@@ -4,7 +4,6 @@
 # when a file in the JWD matches to a list of hashes
 
 import argparse
-import datetime
 import hashlib
 import os
 import pathlib
@@ -12,6 +11,7 @@ import sys
 import time
 import zlib
 import logging
+from argparse import RawTextHelpFormatter
 from datetime import datetime, timezone
 from dateutil.relativedelta import relativedelta
 from typing import Dict
@@ -19,11 +19,8 @@ from typing import Dict
 import galaxy_jwd
 import requests
 import yaml
-from tqdm import tqdm
 
 CHECKSUM_FILE_ENV = "MALWARE_LIB"
-
-CURRENT_TIME = int(time.time())
 
 DEFAULT_SUBJECT = "Galaxy Account deleted due to ToS violations"
 DEFAULT_MESSAGE = """
@@ -33,7 +30,7 @@ This means your jobs were terminated and you can not login anymore.
 However it is possible to restore the account and its data.
 If you think your account was deleted due to an error, please contact
 """
-ONLY_ONE_INSTANCE = "The other must be an instance of the Severity"
+ONLY_ONE_INSTANCE = "The other must be an instance of the Severity class"
 
 UserId = str
 UserMail = str
@@ -102,7 +99,7 @@ def make_parser() -> argparse.ArgumentParser:
             from the environment variable "MALWARE_LIB",
             searches in JWDs of currently running jobs for matching files
             and reports jobs, users and malware details if specified.
-            Malware library file has the following schema:
+            The malware library file has the following schema:
                 class:
                     program:
                         version:
@@ -112,6 +109,7 @@ def make_parser() -> argparse.ArgumentParser:
                                 crc32: <checksum crc32, gzip algorithm, integer representation>
                                 sha1: <checksum sha1, hex representation>
             WARNING:
+            ----------------------------------------------------------------
             Be careful with how you generate the CRC32 hashes:
             There are multiple algorithms, this script is using
             the one specified by RFC in the GZIP specification.
@@ -119,6 +117,7 @@ def make_parser() -> argparse.ArgumentParser:
             and convert it to integer representation.
             e.g. with:
             gzip -1 -c /path/to/file | tail -c8 | hexdump -n4 -e '"%u"'
+            ----------------------------------------------------------------
 
             The following ENVs (same as gxadmin's) should be set:
                 GALAXY_CONFIG_FILE: Path to the galaxy.yml file
@@ -126,9 +125,9 @@ def make_parser() -> argparse.ArgumentParser:
                 PGDATABASE: Name of the Galaxy database
                 PGUSER: Galaxy database user
                 PGHOST: Galaxy database host
-
                 PGPASSFILE: path to .pgpass file (same as gxadmin's) in format:
                 <pg_host>:5432:*:<pg_user>:<pg_password>
+
             The '--delete-user' flag requires additional environment variables:
                 GALAXY_BASE_URL: Instance hostname including scheme (https://examplegalaxy.org)
                 GALAXY_ADMIN_EMAIL: The email users can contact to file complaints
@@ -136,7 +135,6 @@ def make_parser() -> argparse.ArgumentParser:
                 GALAXY_ROOT: Galaxy root directiory (e.g. /srv/galaxy)
                 WALLE_USER_DELETION_MESSAGE: The message Galaxy should send as notification to a user before it deletes their account
                 WALLE_USER_DELETION_SUBJECT: The message's subject line.
-                WALLE_NOTIFICATION_EXP_MONTHS: When the notification expires (is deleted from the database) in months from when it is sent.
             """,
         formatter_class=argparse.RawTextHelpFormatter,
     )
@@ -156,18 +154,11 @@ def make_parser() -> argparse.ArgumentParser:
         default=100,
     )
 
-    # not yet implemented
-    #  my_parser.add_argument(
-    #      "--remove-jobs",
-    #      action="store_true",
-    #      help="Removes the jobs from condor and fails them in Galaxy",
-    #  )
-
     my_parser.add_argument(
         "--min-size",
         metavar="MIN_SIZE_MB",
         help="Minimum filesize im MB to limit the files to scan. \
-            The check will be skipped if value is 0 (default)",
+The check will be skipped if value is 0 (default)",
         type=convert_arg_to_byte,
         default=0,
     )
@@ -175,9 +166,9 @@ def make_parser() -> argparse.ArgumentParser:
     my_parser.add_argument(
         "--max-size",
         metavar="MAX_SIZE_MB",
-        help="Maximum filesize im MB to limit the files to scan. \
-            CAUTION: Not setting this value can lead to very long computation times. \
-            The check will be skipped if value is 0 (default)",
+        help="Maximum filesize im MB to limit the files to scan.\n \
+CAUTION: Not setting this value can lead to very long computation times.\n \
+The check will be skipped if value is 0 (default)",
         type=convert_arg_to_byte,
         default=0,
     )
@@ -191,8 +182,8 @@ def make_parser() -> argparse.ArgumentParser:
 
     my_parser.add_argument(
         "--tool",
-        help="A string to filter tools in the tool_id column of currently running jobs. \
-            Use like 'grep' after the gxadmin query queue-details command.",
+        help="A string to filter tools in the tool_id column of currently running jobs.\n \
+Use like 'grep' after the gxadmin query queue-details command.",
         type=str,
         default="",
     )
@@ -200,8 +191,8 @@ def make_parser() -> argparse.ArgumentParser:
         "-v",
         "--verbose",
         action="store_true",
-        help="Report not only the job and user ID that matched, but also Path of matched file and malware info. \
-            If set, the scanning process will quit after the first match in a JWD to save resources.",
+        help="Report not only the job and user ID that matched, but also Path of matched file and malware info.\n \
+If set, the scanning process will quit after the first match in a JWD to save resources.",
     )
     my_parser.add_argument(
         "-i",
@@ -214,12 +205,13 @@ def make_parser() -> argparse.ArgumentParser:
         metavar="MIN_SEVERITY",
         choices=VALID_SEVERITIES,
         type=convert_str_to_severity,
-        help="Delete user when severity level is equal or higher. \
-            Make sure that you know what the consequences are on your \
-            instance, when a user is set to deleted (e.g. when a user is purged automatically after deletion). \
-            Following additional environment variables are expected: \
-            GALAXY_API_KEY \
-            GALAXY_BASE_URL",
+        help="Delete user when the found malware's severity level is equal or higher than this value.\n \
+Possible values are 'LOW', 'MEDIUM' or 'HIGH'.\n \
+Make sure that you know the consequences on your instance, especially regarding GDPR and\n \
+what happens when a user is set to deleted (e.g. when a user is purged automatically after deletion).\n \
+Following additional environment variables are expected:\n \
+GALAXY_API_KEY\n \
+GALAXY_BASE_URL",
     )
     return my_parser
 
@@ -360,13 +352,13 @@ class Case:
 
     def check_severity_level(self, severity: Severity) -> UserIdMail:
         if self.malware.severity >= severity:
-            logger.debug(f"User {self.job.user_id} marked for deletion")
+            logger.debug(f"User %s marked for deletion",self.job.user_id)
             return {self.job.user_id: self.job.user_mail}
         else:
             return {}
 
     def report_id_and_user_name(self) -> UserIdMail:
-        logger.info(self.job.user_id, self.job.user_name)
+        logger.info("%s %s", self.job.user_id, self.job.user_name)
         return {self.job.user_id: self.job.user_mail}
 
     def report_matching_malware(self):
@@ -547,7 +539,7 @@ class RunningJobDatabase(galaxy_jwd.Database):
         # Create a dictionary with job_id as key and object_store_id, and
         # update_time as values
         if not running_jobs:
-            logger.warning(f"No running jobs with tool_id like {tool} found.")
+            logger.warning("No running jobs with tool_id like '%s' found.", tool)
             sys.exit(0)
         running_jobs_list = []
         for (
@@ -596,10 +588,10 @@ def get_path_from_env_or_error(env: str) -> pathlib.Path:
             (path := pathlib.Path(os.environ.get(env, "").strip())).exists()
             return path
         except ValueError:
-            logger.error(f"Path for {env} is invalid")
+            logger.error(f"Path for %s is invalid", env)
             raise ValueError
     except ValueError:
-        logger.error(f"Please set ENV {env}")
+        logger.error(f"Please set ENV %s", env)
         raise ValueError
 
 
@@ -612,10 +604,10 @@ def get_str_from_env_or_error(env: str) -> str:
             else:
                 return from_env
         except ValueError:
-            logger.error(f"Path for {env} is invalid")
+            logger.error(f"Path for %s is invalid", env)
             raise ValueError
     except ValueError:
-        logger.error(f"Please set ENV {env}")
+        logger.error(f"Please set ENV %s", env)
         raise ValueError
 
 
@@ -685,9 +677,9 @@ class GalaxyAPI:
     def encode_id_notify_and_delete_user(self, user_id: UserId):
         encoded_user_id = self.encode_galaxy_user_id(decoded_id=user_id)
         if self.notify_user(encoded_user_id):
-            logger.debug(f"User {user_id} notified.")
+            logger.debug("User %s notified.", user_id)
             if self.delete_user(encoded_user_id):
-                logger.info(f"User {user_id} notified and deleted.")
+                logger.info("User %s notified and deleted.", user_id)
 
 
 def print_table_header(verbose: bool, interactive: bool):
