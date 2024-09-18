@@ -10,8 +10,11 @@ Deployed with Ansible.
 
 If you find new miners or other malicious stuff, please add those signatures to our [`intergalactic-most-wanted-list`](https://github.com/usegalaxy-eu/intergalactic-most-wanted-list).
 
-## Prerequisites
-This role expects several requirements:
+## Host machine requirements
+
+1. Python 3 on the host machine
+1. Python dependencies in `walle.py` and `galaxy_jwd.py` must be available (perhaps set `walle_virtualenv` for this)
+    ```
 
 1. Python 3
 1. The python dependencies in `walle.py` and `galaxy_jwd.py` must be available (perhaps in the `walle_virtualenv`)
@@ -30,8 +33,18 @@ This role expects several requirements:
     - `WALLE_USER_DELETION_SUBJECT`: The message's subject line.
 
 [^1]: You should always run 'dangerous' jobs in embedded Pulsar.
+
 ## Ansible
-For ansible details consult `defaults/main.yml`, it should be pretty much self-explanatory.
+
+1. Your playbook should define the following variables:
+    ```
+    galaxy_config_file: /path/to/galaxy.yml
+    galaxy_log_dir: /path/to/galaxy/log/dir
+    galaxy_pg_db: galaxy
+    galaxy_pg_user: galaxy
+    galaxy_pg_host: my-db-server.usegalaxy.org
+    galaxy_pulsar_app_conf: /path/to/pulsar/app.yml
+1. Consult `defaults/main.yml` for available walle variables
 
 ## Usage
 From the tool's help command:
