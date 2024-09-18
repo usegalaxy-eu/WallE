@@ -75,7 +75,7 @@
     minute: "{{ walle_cron_minute }}"
     user: "{{ walle_user_name }}"
     job: >
-      source {{ walle_bashrc }};
+      BASH_ENV={{ walle_bashrc }} bash -c "
       {% if walle_virtualenv %} source {{ walle_virtualenv }}/bin/activate;
       {{ walle_virtualenv }}/bin/python {% else %}
       {{ walle_python }} {% endif %}
@@ -89,4 +89,4 @@
       {% if walle_debug %} --debug {% endif %}
       {% if walle_delete_users %} --delete-user {{ walle_delete_threshold }}
       {% endif %}
-      >> {{ walle_log_dir }}/walle.log 2>&1
+      >> {{ walle_log_dir }}/walle.log 2>&1"
