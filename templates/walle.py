@@ -185,10 +185,7 @@ Use like 'grep' after the gxadmin query queue-details command.",
         default="",
     )
     my_parser.add_argument(
-        "-v",
-        "--verbose",
-        action="store_true",
-        help="Report details for every match."
+        "-v", "--verbose", action="store_true", help="Report details for every match."
     )
     my_parser.add_argument(
         "-i",
@@ -211,7 +208,7 @@ GALAXY_BASE_URL: Instance hostname including scheme (https://examplegalaxy.org)\
 GALAXY_API_KEY: Galaxy API key with admin privileges\n \
 Optional, for default see documentation:\n \
 WALLE_USER_DELETION_MESSAGE: Message that tells the user why their account is deleted.\n \
-WALLE_USER_DELETION_SUBJECT: The message's subject line."
+WALLE_USER_DELETION_SUBJECT: The message's subject line.",
     )
     return my_parser
 
