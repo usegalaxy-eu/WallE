@@ -26,6 +26,10 @@ walle_envs_database:
     value: galaxy
   - key: PGDATABASE
     value: galaxy
+  - key: GALAXY_CONFIG_FILE
+    value: "{{ galaxy_config_dir }}/galaxy.yml"
+  - key: GALAXY_PULSAR_APP_CONF
+    value: "{{ galaxy_config_dir }}/pulsar_app.yml"
 
 # delete users when malware was found and malware severity reached walle_delete_threshold
 walle_delete_users: false
@@ -35,8 +39,6 @@ walle_envs_user_deletion:
     value: "{{ walle_api_key }}"
   - key: GALAXY_BASE_URL
     value: "{{ walle_galaxy_url }}"
-  - key: GALAXY_CONFIG_FILE
-    value: "{{ galaxy_config_dir }}/galaxy.yml"
 #  - key: GALAXY_USER_DELETION_MESSAGE
 #    value: "Your personalized message"
 #  - key: GALAXY_USER_DELETION_SUBJECT
