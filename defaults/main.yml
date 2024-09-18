@@ -10,6 +10,7 @@ walle_python: /usr/bin/python
 walle_database_file: checksums.yml
 walle_log_dir: /var/log/walle
 walle_script_location: /usr/local/bin/walle.py
+#walle_virtualenv: <optional venv for walle to use>
 
 # Script args
 walle_filesize_min: 0
