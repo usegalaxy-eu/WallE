@@ -51,6 +51,7 @@ def convert_arg_to_byte(mb: str) -> int:
 def convert_arg_to_seconds(hours: str) -> float:
     return float(hours) * 60 * 60
 
+
 class Severity:
     def __init__(self, number: int, name: str):
         self.value = number
@@ -352,7 +353,7 @@ class Case:
 
     def check_severity_level(self, severity: Severity) -> UserIdMail:
         if self.malware.severity >= severity:
-            logger.debug(f"User %s marked for deletion",self.job.user_id)
+            logger.debug(f"User %s marked for deletion", self.job.user_id)
             return {self.job.user_id: self.job.user_mail}
         else:
             return {}
@@ -652,14 +653,22 @@ class GalaxyAPI:
         if response.status_code == 200:
             if response.json()["total_notifications_sent"] == 1:
                 return True
-        logger.error("Can not notify user %s, response from Galaxy: %s", encoded_user_id, response.content)
+        logger.error(
+            "Can not notify user %s, response from Galaxy: %s",
+            encoded_user_id,
+            response.content,
+        )
         return False
 
     def delete_user(self, encoded_user_id: UserId) -> bool:
         url = f"{self.base_url}/api/users/{encoded_user_id}"
         response = requests.delete(url=url, headers=self.auth_header)
         if response.status_code != 200:
-            logger.error("Can not encode delete user %s, response from Galaxy: %s", encoded_user_id, response.content)
+            logger.error(
+                "Can not encode delete user %s, response from Galaxy: %s",
+                encoded_user_id,
+                response.content,
+            )
             return False
         else:
             return True
@@ -668,7 +677,9 @@ class GalaxyAPI:
         url = f"{self.base_url}/api/configuration/encode/{decoded_id}"
         response = requests.get(url=url, headers=self.auth_header)
         if response.status_code != 200:
-            logger.error("Can not encode user id, response from Galaxy: %s", response.content)
+            logger.error(
+                "Can not encode user id, response from Galaxy: %s", response.content
+            )
             return ""
         else:
             json_response = response.json()
@@ -686,10 +697,8 @@ def print_table_header(verbose: bool, interactive: bool):
     if interactive:
         if verbose:
             logger.debug(
-                "TIMESTAMP MALWARE_SEVERITY USER_ID USER_NAME USER_MAIL \
-                    TOOL_ID GALAXY_JOB_ID RUNNER_JOB_ID RUNNER_NAME \
-                    OBJECT_STORE_ID MALWARE_CLASS MALWARE_NAME \
-                    MALWARE_VERSION PATH"
+                "MALWARE_SEVERITY USER_ID USER_NAME USER_MAIL TOOL_ID GALAXY_JOB_ID \
+RUNNER_JOB_ID RUNNER_NAME OBJECT_STORE_ID MALWARE_CLASS MALWARE_NAME MALWARE_VERSION PATH"
             )
         else:
             logger.info("GALAXY_USER JOB_ID")
@@ -743,9 +752,9 @@ def main():
                     reported_users=reported_users,
                     delete_users=delete_users,
                 )
-                reported_users = case.report_according_to_verbosity()
+                reported_users.update(case.report_according_to_verbosity())
                 if args.delete_user:
-                    delete_users = case.mark_user_for_deletion(args.delete_user)
+                    delete_users.update(case.mark_user_for_deletion(args.delete_user))
     # Deletes users at the end, to report all malicious jobs of a user
     if args.delete_user:
         api = GalaxyAPI(
@@ -757,7 +766,7 @@ def main():
             ),
             delete_message=os.environ.get(
                 "WALLE_USER_DELETION_MESSAGE", DEFAULT_MESSAGE
-            )
+            ),
         )
         for user_id in delete_users:
             # add notification here
