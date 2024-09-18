@@ -41,6 +41,14 @@
   with_items: "{{ walle_envs_user_deletion }}"
   when: walle_delete_users
 
+- name: Copy galaxy_jwd.py script to walle_script_location
+  copy:
+    src: "galaxy_jwd.py"
+    dest: "{{ walle_script_location|dirname }}/galaxy_jwd.py"
+    mode: 0755
+    owner: "{{ walle_user_name }}"
+    group: "{{ walle_user_group }}"
+
 - name: Create logfile (WallE)
   ansible.builtin.file:
     state: touch
