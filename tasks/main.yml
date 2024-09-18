@@ -11,7 +11,7 @@
     - "{{ walle_malware_database_location }}"
 
 - name: Deploy (WallE)
-  ansible.builtin.template:
+  copy:
     src: walle.py
     dest: "{{ walle_script_location }}"
     owner: root
