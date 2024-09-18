@@ -421,17 +421,23 @@ def load_malware_lib_from_env(malware_file: pathlib.Path) -> dict:
 
 def digest_file_crc32(chunksize: int, path: pathlib.Path) -> int:
     crc32 = 0
+    try:
     with open(path, "rb") as specimen:
         while chunk := specimen.read(chunksize):
             crc32 = zlib.crc32(chunk, crc32)
+    except PermissionError:
+        logger.warning(f"Permission denied for file: {path}")
     return crc32
 
 
 def digest_file_sha1(chunksize: int, path: pathlib.Path) -> str:
     sha1 = hashlib.sha1()
+    try:
     with open(path, "rb") as specimen:
         while chunk := specimen.read(chunksize):
             sha1.update(chunk)
+    except PermissionError:
+        logger.warning(f"Permission denied for file: {path}")
     return sha1.hexdigest()
 
 
