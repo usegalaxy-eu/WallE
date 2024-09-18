@@ -48,6 +48,7 @@ walle_envs_user_deletion:
 # walle_tool: <string to filter tool ids in database job table>
 walle_verbose: false
 walle_debug: false
+walle_kill: false
 
 # Cron
 walle_cron_day: "*"

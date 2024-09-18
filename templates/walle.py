@@ -12,6 +12,7 @@ import hashlib
 import logging
 import os
 import pathlib
+import subprocess
 import sys
 import time
 import zlib
@@ -46,6 +47,8 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M",
 )
 logger = logging.getLogger(__name__)
+GXADMIN_PATH = os.getenv('GXADMIN_PATH', '/usr/local/bin/gxadmin')
+CURRENT_TIME = int(time.time())
 
 
 def convert_arg_to_byte(mb: str) -> int:
@@ -159,6 +162,12 @@ def make_parser() -> argparse.ArgumentParser:
         help="Chunksize in MiB for hashing the files in JWDs, defaults to 100 MiB",
         type=convert_arg_to_byte,
         default=100,
+    )
+
+    my_parser.add_argument(
+        "--kill",
+        action="store_true",
+        help="Kill malicious jobs with gxadmin.",
     )
 
     my_parser.add_argument(
@@ -422,9 +431,9 @@ def load_malware_lib_from_env(malware_file: pathlib.Path) -> dict:
 def digest_file_crc32(chunksize: int, path: pathlib.Path) -> int:
     crc32 = 0
     try:
-    with open(path, "rb") as specimen:
-        while chunk := specimen.read(chunksize):
-            crc32 = zlib.crc32(chunk, crc32)
+        with open(path, "rb") as specimen:
+            while chunk := specimen.read(chunksize):
+                crc32 = zlib.crc32(chunk, crc32)
     except PermissionError:
         logger.warning(f"Permission denied for file: {path}")
     return crc32
@@ -433,9 +442,9 @@ def digest_file_crc32(chunksize: int, path: pathlib.Path) -> int:
 def digest_file_sha1(chunksize: int, path: pathlib.Path) -> str:
     sha1 = hashlib.sha1()
     try:
-    with open(path, "rb") as specimen:
-        while chunk := specimen.read(chunksize):
-            sha1.update(chunk)
+        with open(path, "rb") as specimen:
+            while chunk := specimen.read(chunksize):
+                sha1.update(chunk)
     except PermissionError:
         logger.warning(f"Permission denied for file: {path}")
     return sha1.hexdigest()
@@ -604,6 +613,33 @@ class RunningJobDatabase(galaxy_jwd.Database):
         return running_jobs_list
 
 
+def kill_job(job: Job, debug=False):
+    """Attempt to kill a job by its galaxy_id using gxadmin."""
+    logger.info(f"Failing malicious job: {job.galaxy_id}")
+    serial_args = [
+        [
+            GXADMIN_PATH,
+            'mutate',
+            'fail-job',
+            str(job.galaxy_id),
+            '--commit',
+        ],
+        [
+            GXADMIN_PATH,
+            'mutate',
+            'fail-terminal-datasets',
+            '--commit',
+        ],
+    ]
+    for args in serial_args:
+        if debug:
+            logger.debug("COMMAND:", str(args))
+        try:
+            subprocess.check_output(args, shell=True)
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Exception raised failing job {job.galaxy_id}:\n{e}")
+
+
 def evaluate_match_for_deletion(
     job: Job,
     match: Malware,
@@ -641,6 +677,7 @@ MALWARE_CLASS MALWARE MALWARE_VERSION PATH"
     ):
         jwd_path = jwd_getter.get_jwd_path(job)
         if pathlib.Path(jwd_path).exists():
+            malicious = False
             logger.debug(f"Scanning JWD: {jwd_path}")
             job.jwd = pathlib.Path(jwd_path)
             for file in all_files_in_dir(job.jwd, args):
@@ -649,7 +686,7 @@ MALWARE_CLASS MALWARE MALWARE_VERSION PATH"
                     chunksize=args.chunksize, file=file, lib=malware_library
                 )
                 if len(matching_malware) > 0:
-                    print("\n")
+                    malicious = True
                     if args.verbose:
                         for malware in matching_malware:
                             logger.info(
@@ -662,7 +699,8 @@ MALWARE_CLASS MALWARE MALWARE_VERSION PATH"
                     else:
                         logger.info(job.report_id_and_user_name())
                         break
-
+            if malicious and args.kill:
+                kill_job(job, debug=args.debug)
         else:
             logger.warning(
                 f"JWD for Job {job.galaxy_id} found but does not exist in FS",
