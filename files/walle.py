@@ -633,11 +633,20 @@ def kill_job(job: Job, debug=False):
     ]
     for args in serial_args:
         if debug:
-            logger.debug("COMMAND:", str(args))
+            logger.debug(f"COMMAND: {' '.join(args)}")
         try:
-            subprocess.check_output(args, shell=True)
+            result = subprocess.run(
+                args,
+                check_output=True,
+                capture_output=True,
+                text=True)
+            if debug:
+                if result.stdout:
+                    logger.debug(f"COMMAND STDOUT:\n{result.stdout}")
+                if result.stderr:
+                    logger.debug(f"COMMAND STDERR:\n{result.stderr}")
         except subprocess.CalledProcessError as e:
-            logger.error(f"Exception raised failing job {job.galaxy_id}:\n{e}")
+            logger.error(f"Error failing job {job.galaxy_id}:\n{e}")
 
 
 def evaluate_match_for_deletion(
