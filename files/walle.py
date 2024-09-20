@@ -637,7 +637,7 @@ def kill_job(job: Job, debug=False):
         try:
             result = subprocess.run(
                 args,
-                check_output=True,
+                check=True,
                 capture_output=True,
                 text=True)
             if debug:
