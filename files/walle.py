@@ -329,9 +329,7 @@ class Job:
                     continue
                 file = pathlib.Path(os.path.join(root, filename))
                 file_stat = file.stat()
-                if not file_in_size_range(
-                    file_stat, args.min_size, args.max_size
-                ):
+                if not file_in_size_range(file_stat, args.min_size, args.max_size):
                     logger.debug(f"File {file} not in size range")
                 elif not file_accessed_in_range(file_stat, args.since):
                     logger.debug(f"File {file} not in access date range")
@@ -472,7 +470,9 @@ def scan_file_for_malware(
     sha1 = None
     for malware in lib:
         if malware.crc32 == crc32:
-            logger.debug(f"File {file} CRC32 matches {malware.program} {malware.version}")
+            logger.debug(
+                f"File {file} CRC32 matches {malware.program} {malware.version}"
+            )
             if sha1 is None:
                 sha1 = digest_file_sha1(chunksize, file)
             if malware.sha1 == sha1:
@@ -485,9 +485,11 @@ def scan_file_for_malware(
 
 
 def report_matching_malware(job: Job, malware: Malware, path: pathlib.Path) -> str:
-    return (f"Job user: {job.user_name} Job ID: {job.galaxy_id}"
-            f"{malware.malware_class} {malware.program} {malware.version}"
-            f" {path}")
+    return (
+        f"Job user: {job.user_name} Job ID: {job.galaxy_id}"
+        f"{malware.malware_class} {malware.program} {malware.version}"
+        f" {path}"
+    )
 
 
 def construct_malware_list(malware_yaml: dict) -> [Malware]:
@@ -619,27 +621,23 @@ def kill_job(job: Job, debug=False):
     serial_args = [
         [
             GXADMIN_PATH,
-            'mutate',
-            'fail-job',
+            "mutate",
+            "fail-job",
             str(job.galaxy_id),
-            '--commit',
+            "--commit",
         ],
         [
             GXADMIN_PATH,
-            'mutate',
-            'fail-terminal-datasets',
-            '--commit',
+            "mutate",
+            "fail-terminal-datasets",
+            "--commit",
         ],
     ]
     for args in serial_args:
         if debug:
             logger.debug(f"COMMAND: {' '.join(args)}")
         try:
-            result = subprocess.run(
-                args,
-                check=True,
-                capture_output=True,
-                text=True)
+            result = subprocess.run(args, check=True, capture_output=True, text=True)
             if debug:
                 if result.stdout:
                     logger.debug(f"COMMAND STDOUT:\n{result.stdout}")
@@ -662,7 +660,7 @@ def evaluate_match_for_deletion(
     args = make_parser().parse_args()
     logging.basicConfig(
         level=logging.DEBUG if args.debug else logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s'
+        format="%(asctime)s - %(levelname)s - %(message)s",
     )
     logger.info("Starting scan...")
     jwd_getter = JWDGetter()

@@ -165,9 +165,7 @@ def main():
     backends = parse_object_store(object_store_conf)
 
     # Add pulsar staging directory (runner: pulsar_embedded) to backends
-    backends["pulsar_embedded"] = get_pulsar_staging_dir(
-        galaxy_pulsar_app_conf
-    )
+    backends["pulsar_embedded"] = get_pulsar_staging_dir(galaxy_pulsar_app_conf)
 
     # Connect to Galaxy database
     db = Database(
@@ -181,9 +179,7 @@ def main():
     if args.operation == "get":
         job_id = args.job_id
         object_store_id, job_runner_name = db.get_job_info(job_id)
-        jwd_path = decode_path(
-            job_id, [object_store_id], backends, job_runner_name
-        )
+        jwd_path = decode_path(job_id, [object_store_id], backends, job_runner_name)
 
         # Check
         if jwd_path:
@@ -200,8 +196,7 @@ def main():
         # Check if the given Galaxy log directory exists
         if not os.path.isdir(galaxy_log_dir):
             raise ValueError(
-                f"The given Galaxy log directory {galaxy_log_dir} does not"
-                f"exist"
+                f"The given Galaxy log directory {galaxy_log_dir} does not" f"exist"
             )
 
         # Set variables
@@ -299,7 +294,7 @@ def parse_object_store(object_store_conf: str) -> dict:
     """
     if object_store_conf.endswith(".xml"):
         return parse_object_store_xml(object_store_conf)
-    if object_store_conf.split('.')[-1] in ('yml', 'yaml'):
+    if object_store_conf.split(".")[-1] in ("yml", "yaml"):
         return parse_object_store_yaml(object_store_conf)
     raise ValueError("Invalid object store configuration file extension")
 
@@ -321,11 +316,11 @@ def parse_object_store_yaml(object_store_conf: str) -> dict:
     with open(object_store_conf, "r") as f:
         data = yaml.safe_load(f)
     backends = {}
-    for backend in data['backends']:
-        backend_id = backend['id']
+    for backend in data["backends"]:
+        backend_id = backend["id"]
         backends[backend_id] = {}
         # Get the extra_dir's path for each backend if type is "job_work"
-        if 'extra_dirs' in backend:
+        if "extra_dirs" in backend:
             for extra_dir in backend["extra_dirs"]:
                 if extra_dir.get("type") == "job_work":
                     backends[backend_id] = extra_dir["path"]
@@ -390,8 +385,7 @@ def decode_path(
         jwd_path = f"{backends_dict['pulsar_embedded']}/{job_id}"
     else:
         jwd_path = (
-            f"{backends_dict[metadata[0]]}/"
-            f"0{job_id[0:2]}/{job_id[2:5]}/{job_id}"
+            f"{backends_dict[metadata[0]]}/" f"0{job_id[0:2]}/{job_id[2:5]}/{job_id}"
         )
 
     # Validate that the path is a JWD
