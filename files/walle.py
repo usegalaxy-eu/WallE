@@ -23,8 +23,6 @@ import galaxy_jwd
 import requests
 import yaml
 
-logger = logging.getLogger(__name__)
-
 CHECKSUM_FILE_ENV = "MALWARE_LIB"
 
 DEFAULT_SUBJECT = "Galaxy Account deleted due to ToS violations"
