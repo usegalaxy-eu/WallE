@@ -46,7 +46,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 GXADMIN_PATH = os.getenv('GXADMIN_PATH', '/usr/local/bin/gxadmin')
-CURRENT_TIME = int(time.time())
 
 
 def convert_arg_to_byte(mb: str) -> int:
