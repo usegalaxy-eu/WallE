@@ -481,14 +481,6 @@ def scan_file_for_malware(
     return matches
 
 
-def report_matching_malware(job: Job, malware: Malware, path: pathlib.Path) -> str:
-    return (
-        f"Job user: {job.user_name} Job ID: {job.galaxy_id}"
-        f"{malware.malware_class} {malware.program} {malware.version}"
-        f" {path}"
-    )
-
-
 def construct_malware_list(malware_yaml: dict) -> [Malware]:
     """
     creates a flat list of malware objects, that hold all info
