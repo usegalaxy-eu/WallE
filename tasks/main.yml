@@ -23,7 +23,7 @@
     repo: "{{ walle_malware_repo }}"
     dest: "{{ walle_malware_database_location }}"
     version: "{{ walle_malware_database_version }}"
-  ignore_errors: yes
+  ignore_errors: yes  # allow keeping local changes
 
 - name: Touch walle .bashrc file
   file:
@@ -35,7 +35,7 @@
     path: "{{ walle_bashrc }}"
     regexp: "^export {{ item.key }}="
     line: 'export {{ item.key }}="{{ item.value }}"'
-  with_items: "{{ walle_envs_database }}"
+  with_items: "{{ walle_env_vars }}"
 
 - name: Add env variables for user deletion (WallE)
   ansible.builtin.lineinfile:
