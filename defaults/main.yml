@@ -36,7 +36,7 @@ walle_envs_database:
   - key: GXADMIN_PATH
     value: /usr/local/bin/gxadmin
 
-walle_extra_env_vars: {}  # These will be added to the default env vars
+walle_extra_env_vars: []  # These will be added to the default env vars
 walle_env_vars: "{{ walle_envs_database + walle_extra_env_vars }}"
 
 # delete users when malware was found and malware severity reached walle_delete_threshold
