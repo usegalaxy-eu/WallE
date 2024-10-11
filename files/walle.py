@@ -16,7 +16,7 @@ import subprocess
 import sys
 import time
 import zlib
-from typing import Dict
+from typing import Dict, List
 
 import galaxy_jwd
 import requests
@@ -317,7 +317,7 @@ class Job:
         return False
 
     def collect_files_in_a_directory(
-        self, args: argparse.Namespace, dirpath: str, filenames: list[str]
+        self, args: argparse.Namespace, dirpath: str, filenames: List[str]
     ):
         for filename in filenames:
             file = pathlib.Path(os.path.join(dirpath, filename))
@@ -446,8 +446,8 @@ def digest_file_sha1(chunksize: int, path: pathlib.Path) -> str:
 
 
 def scan_file_for_malware(
-    chunksize: int, file: pathlib.Path, lib: list[Malware]
-) -> list[Malware]:
+    chunksize: int, file: pathlib.Path, lib: List[Malware]
+) -> List[Malware]:
     """
     Returning a list of Malware, because
     it could potentially happen (even if it should not),
@@ -550,7 +550,7 @@ class RunningJobDatabase(galaxy_jwd.Database):
             db_password,
         )
 
-    def get_running_jobs(self, tool: str) -> list[Job]:
+    def get_running_jobs(self, tool: str) -> List[Job]:
         query = """
                 SELECT j.user_id, u.username, u.email, j.tool_id, j.id,
                 j.job_runner_external_id, j.job_runner_name, j.object_store_id
