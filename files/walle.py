@@ -574,9 +574,7 @@ class RunningJobDatabase(galaxy_jwd.Database):
             logger.debug(f"Found {len(running_jobs)} running jobs matching '{tool}'")
         else:
             logger.debug(
-                f"No running jobs with tool_id like {tool} found.",
-                file=sys.stderr,
-            )
+                f"No running jobs with tool_id like {tool} found.")
             sys.exit(1)
         running_jobs_list = []
         for (
