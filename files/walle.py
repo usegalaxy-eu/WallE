@@ -821,6 +821,8 @@ def main():
                 reported_users.update(case.report_according_to_verbosity())
                 if args.delete_user:
                     delete_users.update(case.mark_user_for_deletion(args.delete_user))
+            if matching_malware and args.kill:
+                kill_job(job)
     # Deletes users at the end, to report all malicious jobs of a user
     if args.delete_user:
         api = GalaxyAPI(
