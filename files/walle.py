@@ -575,7 +575,7 @@ class RunningJobDatabase(galaxy_jwd.Database):
         else:
             logger.debug(
                 f"No running jobs with tool_id like {tool} found.")
-            sys.exit(1)
+            sys.exit(0)
         running_jobs_list = []
         for (
             user_id,
@@ -602,7 +602,7 @@ class RunningJobDatabase(galaxy_jwd.Database):
         return running_jobs_list
 
 
-def kill_job(job: Job, debug=False):
+def kill_job(job: Job):
     """Attempt to kill a job by its galaxy_id using gxadmin."""
     logger.info(f"Failing malicious job: {job.galaxy_id}")
     serial_args = [
@@ -621,15 +621,13 @@ def kill_job(job: Job, debug=False):
         ],
     ]
     for args in serial_args:
-        if debug:
-            logger.debug(f"COMMAND: {' '.join(args)}")
+        logger.debug(f"COMMAND: {' '.join(args)}")
         try:
             result = subprocess.run(args, check=True, capture_output=True, text=True)
-            if debug:
-                if result.stdout:
-                    logger.debug(f"COMMAND STDOUT:\n{result.stdout}")
-                if result.stderr:
-                    logger.debug(f"COMMAND STDERR:\n{result.stderr}")
+            if result.stdout:
+                logger.debug(f"COMMAND STDOUT:\n{result.stdout}")
+            if result.stderr:
+                logger.debug(f"COMMAND STDERR:\n{result.stderr}")
         except subprocess.CalledProcessError as e:
             logger.error(f"Error failing job {job.galaxy_id}:\n{e}")
 
