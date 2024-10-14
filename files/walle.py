@@ -203,12 +203,6 @@ Use like 'grep' after the gxadmin query queue-details command.",
         "-v", "--verbose", action="store_true", help="Report details for every match."
     )
     my_parser.add_argument(
-        "-d",
-        "--debug",
-        action="store_true",
-        help="Emit additional log messages for debugging Wall-E.",
-    )
-    my_parser.add_argument(
         "-i",
         "--interactive",
         action="store_true",

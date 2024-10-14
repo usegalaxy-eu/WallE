@@ -98,7 +98,6 @@
       {% if walle_filesize_max %} --max-size {{ walle_filesize_max }} {% endif %}
       {% if walle_since_hours %} --since {{ walle_since_hours }} {% endif %}
       {% if walle_verbose %} --verbose {% endif %}
-      {% if walle_debug %} --debug {% endif %}
       {% if walle_delete_users %} --delete-user {{ walle_delete_threshold }}
       {% endif %}
       {% if walle_kill %} --kill {% endif %}
