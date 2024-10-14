@@ -26,7 +26,7 @@
   ignore_errors: yes  # allow keeping local changes
 
 - name: Touch walle .bashrc file
-  file:
+  ansible.builtin.file:
     path: "{{ walle_bashrc }}"
     state: touch
 
