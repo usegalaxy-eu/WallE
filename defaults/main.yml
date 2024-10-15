@@ -22,18 +22,18 @@ walle_envs_database:
     value: "{{ walle_malware_database_location }}/{{ walle_database_file }}"
   - key: PGPASSFILE
     value: "{{ walle_pgpass_file }}"
-  - key: PGHOST
-    value: "{{ galaxy_pg_host }}"
-  - key: PGUSER
-    value: "{{ galaxy_pg_user }}"
-  - key: PGDATABASE
-    value: "{{ galaxy_pg_db }}"
   - key: GALAXY_CONFIG_FILE
     value: "{{ galaxy_config_dir }}/galaxy.yml"
-  - key: GALAXY_PULSAR_APP_CONF
-    value: "{{ galaxy_pulsar_app_conf }}"
   - key: GALAXY_LOG_DIR
     value: "{{ galaxy_log_dir }}"
+  - key: PGHOST
+    value: 127.0.0.1
+  - key: PGUSER
+    value: galaxy
+  - key: PGDATABASE
+    value: galaxy
+  - key: GALAXY_PULSAR_APP_CONF
+    value: "{{ galaxy_config_dir }}/pulsar_app.yml"
   - key: GXADMIN_PATH
     value: /usr/local/bin/gxadmin
 

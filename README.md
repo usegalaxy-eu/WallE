@@ -33,15 +33,18 @@ If you find new miners or other malicious stuff, please add those signatures to 
 
 ## Ansible
 
-1. Your playbook should define the following variables:
-    ```
-    galaxy_config_file: /path/to/galaxy.yml
-    galaxy_log_dir: /path/to/galaxy/log/dir
-    galaxy_pg_db: galaxy
-    galaxy_pg_user: galaxy
-    galaxy_pg_host: my-db-server.usegalaxy.org
-    galaxy_pulsar_app_conf: /path/to/pulsar/app.yml
 1. Consult `defaults/main.yml` for available walle variables
+1. You can overwrite or append to `walle_env_vars` by defining `walle_extra_env_vars`
+   in your playbook:
+    ```yml
+    # These values will replace the defaults
+    walle_extra_env_vars:
+    - key: GALAXY_PULSAR_APP_CONF
+      value: "{{ galaxy_config_dir }}/my_pulsar_app.yml"
+    - key: GXADMIN_PATH
+      value: /usr/bin/gxadmin
+    ```
+
 
 ## Usage
 From the tool's help command:
@@ -107,7 +110,6 @@ optional arguments:
   --tool TOOL           A string to filter tools in the tool_id column of currently running jobs.
                          Use like 'grep' after the gxadmin query queue-details command.
   -v, --verbose         Report details for every match.
-  -d, --debug           Emit additional log messages for debugging Wall-E.
   -i, --interactive     Show table header.
   --delete-user MIN_SEVERITY
                         Delete user when the found malware's severity level is equal or higher than this value.
