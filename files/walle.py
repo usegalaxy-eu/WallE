@@ -466,6 +466,7 @@ def scan_file_for_malware(
             )
             if sha1 is None:
                 sha1 = digest_file_sha1(chunksize, file)
+                logger.debug(f"File {file} calculated SHA-1: {sha1}")
             if malware.sha1 == sha1:
                 matches.append(malware)
             else:
