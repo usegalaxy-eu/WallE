@@ -14,9 +14,6 @@ If you find new miners or other malicious stuff, please add those signatures to 
 
 1. Python 3 on the host machine
 1. Python dependencies in `walle.py` and `galaxy_jwd.py` must be available (perhaps set `walle_virtualenv` for this)
-    ```
-
-1. Python 3
 1. The python dependencies in `walle.py` and `galaxy_jwd.py` must be available (perhaps in the `walle_virtualenv`)
 1. Following environment vars must be set:
     - `GALAXY_CONFIG_FILE`: Path to the galaxy.yml file
