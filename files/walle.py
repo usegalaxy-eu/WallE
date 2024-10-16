@@ -44,7 +44,7 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M",
 )
 logger = logging.getLogger(__name__)
-GXADMIN_PATH = os.getenv('GXADMIN_PATH', '/usr/local/bin/gxadmin')
+GXADMIN_PATH = os.getenv("GXADMIN_PATH", "/usr/local/bin/gxadmin")
 
 
 def convert_arg_to_byte(mb: str) -> int:
@@ -568,8 +568,7 @@ class RunningJobDatabase(galaxy_jwd.Database):
         if running_jobs:
             logger.debug(f"Found {len(running_jobs)} running jobs matching '{tool}'")
         else:
-            logger.debug(
-                f"No running jobs with tool_id like {tool} found.")
+            logger.debug(f"No running jobs with tool_id like {tool} found.")
             sys.exit(0)
         running_jobs_list = []
         for (
