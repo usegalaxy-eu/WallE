@@ -12,7 +12,8 @@ import sys
 import textwrap
 from argparse import RawDescriptionHelpFormatter
 from datetime import datetime
-from typing import Optional, Tuple
+from pathlib import Path
+from typing import Optional, Tuple, Union
 from xml.dom.minidom import parse
 
 import psycopg2
@@ -230,7 +231,7 @@ def main():
                     print(f"{job_id}: {jwd_path}")
 
 
-def extract_password_from_pgpass(pgpass_file: str) -> str:
+def extract_password_from_pgpass(pgpass_file: Union[str, Path]) -> Union[str, None]:
     """Extract the password from the ~/.pgpass file.
 
     The ~/.pgpass file should have the following format:
@@ -257,7 +258,7 @@ def extract_password_from_pgpass(pgpass_file: str) -> str:
                 )
 
 
-def get_object_store_conf_path(galaxy_config_file: str) -> str:
+def get_object_store_conf_path(galaxy_config_file: Union[str, Path]) -> Union[str, None]:
     """Get the path to the object_store_conf.xml file.
 
     Args:
@@ -327,7 +328,7 @@ def parse_object_store_yaml(object_store_conf: str) -> dict:
     return backends
 
 
-def get_pulsar_staging_dir(galaxy_pulsar_app_conf: str) -> str:
+def get_pulsar_staging_dir(galaxy_pulsar_app_conf: Union[str, Path]) -> str:
     """Get the path to the pulsar staging directory.
 
     Args:
@@ -354,11 +355,11 @@ def get_pulsar_staging_dir(galaxy_pulsar_app_conf: str) -> str:
 
 
 def decode_path(
-    job_id: int,
+    job_id: Union[int, str],
     metadata: list,
     backends_dict: dict,
     job_runner_name: Optional[str] = None,
-) -> str:
+) -> Union[str, None]:
     """Decode the path of JWDs and check if the path exists.
 
     Args:

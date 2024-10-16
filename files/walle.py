@@ -16,7 +16,7 @@ import subprocess
 import sys
 import time
 import zlib
-from typing import Dict, List
+from typing import Dict, List, Union
 
 import galaxy_jwd
 import requests
@@ -476,7 +476,7 @@ def scan_file_for_malware(
     return matches
 
 
-def construct_malware_list(malware_yaml: dict) -> [Malware]:
+def construct_malware_list(malware_yaml: dict) -> list[Malware]:
     """
     creates a flat list of malware objects, that hold all info
     The nested structure in yaml is for better optical structuring
@@ -537,7 +537,13 @@ class JWDGetter:
 
 
 class RunningJobDatabase(galaxy_jwd.Database):
-    def __init__(self, db_name: str, db_host=None, db_user=None, db_password=None):
+    def __init__(
+            self,
+            db_name: str,
+            db_host: Union[str, None] = None,
+            db_user: Union[str, None] = None,
+            db_password: Union[str, None] = None,
+    ):
         super().__init__(
             db_name,
             db_user,
