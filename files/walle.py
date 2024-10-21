@@ -527,22 +527,25 @@ class JWDGetter:
 
     # might deserve it's own function in galaxy_jwd.py
     def get_jwd_path(self, job: Job) -> str:
-        jwd = galaxy_jwd.decode_path(
-            job.galaxy_id,
-            [job.object_store_id],
-            self.backends,
-            job.runner_name,
-        )
-        return jwd
+        try:
+            return galaxy_jwd.decode_path(
+                job.galaxy_id,
+                [job.object_store_id],
+                self.backends,
+                job.runner_name,
+            )
+        except ValueError:
+            logger.warning(f"Job Working Directory not found for job {job}")
+            return ""
 
 
 class RunningJobDatabase(galaxy_jwd.Database):
     def __init__(
-            self,
-            db_name: str,
-            db_host: Union[str, None] = None,
-            db_user: Union[str, None] = None,
-            db_password: Union[str, None] = None,
+        self,
+        db_name: str,
+        db_host: str,
+        db_user: str,
+        db_password: str,
     ):
         super().__init__(
             db_name,
@@ -639,10 +642,9 @@ def evaluate_match_for_deletion(
     severity: Severity,
 ) -> UserIdMail:
     """
-    Miner Finder's main function. Shows a status bar while processing the jobs
-    found in Galaxy.
-    If in verbose mode, print detailed information for every match. No updates
-    on 'reported' needed.
+    Returns user's ID and mail as K/V pair, if the match's severity
+    is higher or equal to the severity specified in '--delete-user'.
+    E.g. HIGH > MEDIUM.
     """
     if job.user_id not in delete_users and (severity <= match.severity):
         return {job.user_id: job.user_mail}
