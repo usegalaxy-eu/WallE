@@ -25,6 +25,7 @@ However it is possible to restore the account and its data.
 If you think your account was deleted due to an error, please contact
 """
 ONLY_ONE_INSTANCE = "The other must be an instance of the Severity class"
+SLACK_URL = "https://slack.com/api/chat.postMessage"
 
 UserId = str
 UserMail = str
@@ -192,6 +193,14 @@ Use like 'grep' after the gxadmin query queue-details command.",
         "--interactive",
         action="store_true",
         help="Show table header.",
+    )
+    my_parser.add_argument(
+        "--slack-alerts", action="store_true", help=(
+            "Report matches to a Slack channel defined with env variables"
+            " [SLACK_API_TOKEN, SLACK_CHANNEL_ID], where the Slack token"
+            " authenticates a Slack App with permission to post in your"
+            " Workspace."
+        ),
     )
     my_parser.add_argument(
         "--delete-user",
@@ -378,6 +387,27 @@ class Case:
             self.malware.version,
             self.job.files[self.fileindex],
         )
+
+    def post_slack_alert(self):
+        msg = f"""
+:rotating_light: WALLE: *Malware detected* :rotating_light:
+
+- *Hostname*: {os.getenv('WALLE_HOSTNAME')}
+- *Severity*: {self.malware.severity.name}
+- *User*: {self.job.user_id} ({self.job.user_name})
+- *User email*: {self.job.user_mail}
+- *Tool*: {self.job.tool_id}
+- *Galaxy job ID*: {self.job.galaxy_id}
+- *Runner job ID*: {self.job.runner_id}
+- *Runner name*: {self.job.runner_name}
+- *Object store ID*: {self.job.object_store_id}
+- *Malware class*: {self.malware.malware_class}
+- *Malware name*: {self.malware.program}
+- *Malware version*: {self.malware.version}
+- *File*: {self.job.files[self.fileindex]}
+- *Job working dir*: {self.job.jwd}
+"""
+        post_slack_msg(msg)
 
 
 def file_accessed_in_range(
@@ -710,6 +740,30 @@ def get_database_with_password() -> RunningJobDatabase:
     )
 
 
+def post_slack_msg(message):
+    """Post a message to Slack."""
+    key = os.getenv("SLACK_API_TOKEN")
+    channel_id = os.getenv("SLACK_CHANNEL_ID")
+
+    if not all([key, channel_id]):
+        logger.warning("Slack notifications cannot be sent. Make sure your"
+                       " playbook defines required vars:"
+                       " [walle_slack_api_token, walle_slack_channel_id].")
+        return
+
+    logger.info(f"Posting incident report to Slack channel {channel_id}...")
+    requests.post(
+        SLACK_URL,
+        json={
+            "text": message,
+            "channel": channel_id,
+        },
+        headers={
+            "Authorization": f'Bearer {key}',
+        },
+    )
+
+
 def main():
     args = make_parser().parse_args()
     logger.setLevel(logging.DEBUG if args.verbose else logging.INFO)
@@ -750,6 +804,8 @@ def main():
                 reported_users.update(case.report_according_to_verbosity())
                 if args.delete_user:
                     delete_users.update(case.mark_user_for_deletion(args.delete_user))
+                if args.slack_alerts:
+                    case.post_slack_alert()
     # Deletes users at the end, to report all malicious jobs of a user
     if args.delete_user:
         api = GalaxyAPI(
