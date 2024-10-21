@@ -824,6 +824,7 @@ def post_slack_msg(message):
                        " [walle_slack_api_token, walle_slack_channel_id].")
         return
 
+    logger.info(f"Posting incident report to Slack channel {channel_id}...")
     requests.post(
         SLACK_URL,
         json={
