@@ -818,7 +818,7 @@ def post_slack_msg(message):
     key = os.getenv("SLACK_API_TOKEN")
     channel_id = os.getenv("SLACK_CHANNEL_ID")
 
-    if not all(key, channel_id):
+    if not all([key, channel_id]):
         logger.warning("Slack notifications cannot be sent. Make sure your"
                        " playbook defines required vars:"
                        " [walle_slack_api_token, walle_slack_channel_id].")
