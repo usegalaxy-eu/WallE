@@ -476,7 +476,7 @@ def scan_file_for_malware(
     return matches
 
 
-def construct_malware_list(malware_yaml: dict) -> list[Malware]:
+def construct_malware_list(malware_yaml: dict) -> List[Malware]:
     """
     creates a flat list of malware objects, that hold all info
     The nested structure in yaml is for better optical structuring
