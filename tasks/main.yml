@@ -24,7 +24,7 @@
     dest: "{{ walle_malware_database_location }}"
     version: "{{ walle_malware_database_version }}"
     force: "{{ walle_malware_database_force_update }}"
-  ignore_errors: "{{ walle_malware_database_force_update }}"
+  ignore_errors: "{{ not walle_malware_database_force_update }}"
 
 - name: Touch walle .bashrc file
   ansible.builtin.file:
