@@ -31,6 +31,14 @@ class SubcommandHelpFormatter(RawDescriptionHelpFormatter):
         return parts
 
 
+def get_env_or_error(env: str) -> str:
+    from_env = os.environ.get(env)
+    if from_env != None:
+        return from_env.strip()
+    else:
+        raise ValueError(f"Please set ENV {env}")
+
+
 def main():
     """Main function of the JWD script.
 
@@ -118,36 +126,22 @@ def main():
     args = parser.parse_args(args=None if sys.argv[1:] else ["--help"])
 
     # Check if environment variables are set
-    if not os.environ.get("GALAXY_CONFIG_FILE"):
-        raise ValueError("Please set ENV GALAXY_CONFIG_FILE")
-    galaxy_config_file = os.environ.get("GALAXY_CONFIG_FILE").strip()
-
-    # Check if the given galaxy.yml file exists
+    galaxy_config_file = get_env_or_error("GALAXY_CONFIG_FILE")
     if not os.path.isfile(galaxy_config_file):
         raise ValueError(
             f"The given galaxy.yml file {galaxy_config_file} does not exist"
         )
 
     # pulsar_app.yml file path for pulsar_embedded runner
-    if not os.environ.get("GALAXY_PULSAR_APP_CONF"):
-        raise ValueError("Please set ENV GALAXY_PULSAR_APP_CONF")
-    galaxy_pulsar_app_conf = os.environ.get("GALAXY_PULSAR_APP_CONF").strip()
+    galaxy_pulsar_app_conf = get_env_or_error("GALAXY_PULSAR_APP_CONF")
 
-    if not os.environ.get("GALAXY_LOG_DIR"):
-        raise ValueError("Please set ENV GALAXY_LOG_DIR")
-    galaxy_log_dir = os.environ.get("GALAXY_LOG_DIR").strip()
+    galaxy_log_dir = get_env_or_error("GALAXY_LOG_DIR")
 
-    if not os.environ.get("PGDATABASE"):
-        raise ValueError("Please set ENV PGDATABASE")
-    db_name = os.environ.get("PGDATABASE").strip()
+    db_name = get_env_or_error("PGDATABASE")
 
-    if not os.environ.get("PGUSER"):
-        raise ValueError("Please set ENV PGUSER")
-    db_user = os.environ.get("PGUSER").strip()
+    db_user = get_env_or_error("PGUSER")
 
-    if not os.environ.get("PGHOST"):
-        raise ValueError("Please set ENV PGHOST")
-    db_host = os.environ.get("PGHOST").strip()
+    db_host = get_env_or_error("PGHOST")
 
     # Check if ~/.pgpass file exists and is not empty
     if (
@@ -231,7 +225,7 @@ def main():
                     print(f"{job_id}: {jwd_path}")
 
 
-def extract_password_from_pgpass(pgpass_file: Union[str, Path]) -> Union[str, None]:
+def extract_password_from_pgpass(pgpass_file: Union[str, Path]) -> str:
     """Extract the password from the ~/.pgpass file.
 
     The ~/.pgpass file should have the following format:
@@ -246,19 +240,19 @@ def extract_password_from_pgpass(pgpass_file: Union[str, Path]) -> Union[str, No
     Raises:
         ValueError: The ~/.pgpass file cannot be parsed.
     """
+    pghost = get_env_or_error("PGHOST")
     pgpass_format = "<pg_host>:5432:*:<pg_user>:<pg_password>"
     with open(pgpass_file, "r") as pgpass:
         for line in pgpass:
-            if line.startswith(os.environ.get("PGHOST")):
+            if line.startswith(pghost):
                 return line.split(":")[4].strip()
-            else:
-                raise ValueError(
-                    f"Please add the password for '{os.environ.get('PGHOST')}'"
-                    f"to the ~/.pgpass file in format: {pgpass_format}"
-                )
+        raise ValueError(
+            f"Please add the password for {pghost}"
+            f"to the ~/.pgpass file in format: {pgpass_format}"
+        )
 
 
-def get_object_store_conf_path(galaxy_config_file: Union[str, Path]) -> Union[str, None]:
+def get_object_store_conf_path(galaxy_config_file: Union[str, Path]) -> str:
     """Get the path to the object_store_conf.xml file.
 
     Args:
@@ -282,6 +276,9 @@ def get_object_store_conf_path(galaxy_config_file: Union[str, Path]) -> Union[st
                     raise ValueError(f"{object_store_conf} does not exist")
 
                 return object_store_conf
+            else:
+                raise ValueError(f"{object_store_conf} does not exist")
+        raise ValueError(f"Galaxy config is empty")
 
 
 def parse_object_store(object_store_conf: str) -> dict:
@@ -359,7 +356,7 @@ def decode_path(
     metadata: list,
     backends_dict: dict,
     job_runner_name: Optional[str] = None,
-) -> Union[str, None]:
+) -> str:
     """Decode the path of JWDs and check if the path exists.
 
     Args:
@@ -404,7 +401,7 @@ def decode_path(
     ):
         return jwd_path
     else:
-        return None
+        raise ValueError("Unabale to fetch Job Working Directory for job with ID {job}")
 
 
 def delete_jwd(jwd_path: str) -> None:
@@ -504,19 +501,17 @@ class Database:
             AND job_runner_name IS NOT NULL
             """
         )
-        object_store_id, job_runner_name = cur.fetchone()
+        fetched = cur.fetchone()
         cur.close()
         self.conn.close()
-
-        if not object_store_id:
-            print(
-                f"Object store id and/or the job runner name for the job"
-                f"'{job_id}' was not found in the database",
-                file=sys.stderr,
+        if fetched != None and fetched[0] and fetched[1]:
+            object_store_id = fetched[0]
+            job_runner_name = fetched[1]
+            return object_store_id, job_runner_name
+        else:
+            raise ValueError(
+                f"Object store id and/or the job runner name for the job '{job_id}' was not found in the database"
             )
-            sys.exit(1)
-
-        return object_store_id, job_runner_name
 
 
 if __name__ == "__main__":
