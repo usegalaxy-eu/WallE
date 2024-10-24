@@ -11,7 +11,7 @@
     - "{{ walle_malware_database_location }}"
 
 - name: Deploy (WallE)
-  ansible.builtin.template:
+  ansible.builtin.copy:
     src: walle.py
     dest: "{{ walle_script_location }}"
     owner: root
@@ -23,14 +23,20 @@
     repo: "{{ walle_malware_repo }}"
     dest: "{{ walle_malware_database_location }}"
     version: "{{ walle_malware_database_version }}"
+    force: "{{ walle_malware_database_force_update }}"
+  ignore_errors: "{{ not walle_malware_database_force_update }}"
 
+- name: Touch walle .bashrc file
+  ansible.builtin.file:
+    path: "{{ walle_bashrc }}"
+    state: touch
 
-- name: Add env variable for database (WallE)
+- name: Add env variables to WallE .bashrc
   ansible.builtin.lineinfile:
     path: "{{ walle_bashrc }}"
     regexp: "^export {{ item.key }}="
     line: 'export {{ item.key }}="{{ item.value }}"'
-  with_items: "{{ walle_envs_database }}"
+  with_items: "{{ walle_env_vars }}"
 
 - name: Add env variables for user deletion (WallE)
   ansible.builtin.lineinfile:
@@ -39,6 +45,14 @@
     line: 'export {{ item.key }}="{{ item.value }}"'
   with_items: "{{ walle_envs_user_deletion }}"
   when: walle_delete_users
+
+- name: Copy galaxy_jwd.py script to walle_script_location
+  ansible.builtin.copy:
+    src: "galaxy_jwd.py"
+    dest: "{{ walle_script_location|dirname }}/galaxy_jwd.py"
+    mode: 0755
+    owner: "{{ walle_user_name }}"
+    group: "{{ walle_user_group }}"
 
 - name: Create logfile (WallE)
   ansible.builtin.file:
@@ -74,7 +88,7 @@
     minute: "{{ walle_cron_minute }}"
     user: "{{ walle_user_name }}"
     job: >
-      source {{ walle_bashrc }};
+      BASH_ENV={{ walle_bashrc }} bash -c "
       {% if walle_virtualenv %} source {{ walle_virtualenv }}/bin/activate;
       {{ walle_virtualenv }}/bin/python {% else %}
       {{ walle_python }} {% endif %}
@@ -84,7 +98,8 @@
       {{ walle_filesize_min }} {% endif %}
       {% if walle_filesize_max %} --max-size {{ walle_filesize_max }} {% endif %}
       {% if walle_since_hours %} --since {{ walle_since_hours }} {% endif %}
-      {% if walle_verbose %} -v {% endif %}
+      {% if walle_verbose %} --verbose {% endif %}
       {% if walle_delete_users %} --delete-user {{ walle_delete_threshold }}
       {% endif %}
-      >> {{ walle_log_dir }}/walle.log 2>&1
+      {% if walle_kill %} --kill {% endif %}
+      >> {{ walle_log_dir }}/walle.log 2>&1"

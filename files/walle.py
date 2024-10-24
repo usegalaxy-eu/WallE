@@ -1,14 +1,22 @@
 #!/usr/bin/env python
 
+"""Keep your system clean!
+
+A command line script that iterates over the currently running jobs and stops
+them as well as logs the user, when a file in the JWD matches to a list of
+hashes.
+"""
+
 import argparse
 import hashlib
+import logging
 import os
 import pathlib
+import subprocess
 import sys
 import time
 import zlib
-import logging
-from typing import Dict
+from typing import Dict, List, Union
 
 import galaxy_jwd
 import requests
@@ -36,6 +44,7 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M",
 )
 logger = logging.getLogger(__name__)
+GXADMIN_PATH = os.getenv("GXADMIN_PATH", "/usr/local/bin/gxadmin")
 
 
 def convert_arg_to_byte(mb: str) -> int:
@@ -149,6 +158,12 @@ def make_parser() -> argparse.ArgumentParser:
         help="Chunksize in MiB for hashing the files in JWDs, defaults to 100 MiB",
         type=convert_arg_to_byte,
         default=100,
+    )
+
+    my_parser.add_argument(
+        "--kill",
+        action="store_true",
+        help="Kill malicious jobs with gxadmin.",
     )
 
     my_parser.add_argument(
@@ -296,7 +311,7 @@ class Job:
         return False
 
     def collect_files_in_a_directory(
-        self, args: argparse.Namespace, dirpath: str, filenames: list[str]
+        self, args: argparse.Namespace, dirpath: str, filenames: List[str]
     ):
         for filename in filenames:
             file = pathlib.Path(os.path.join(dirpath, filename))
@@ -404,23 +419,29 @@ def load_malware_lib_from_env(malware_file: pathlib.Path) -> dict:
 
 def digest_file_crc32(chunksize: int, path: pathlib.Path) -> int:
     crc32 = 0
-    with open(path, "rb") as specimen:
-        while chunk := specimen.read(chunksize):
-            crc32 = zlib.crc32(chunk, crc32)
+    try:
+        with open(path, "rb") as specimen:
+            while chunk := specimen.read(chunksize):
+                crc32 = zlib.crc32(chunk, crc32)
+    except PermissionError:
+        logger.warning(f"Permission denied for file: {path}")
     return crc32
 
 
 def digest_file_sha1(chunksize: int, path: pathlib.Path) -> str:
     sha1 = hashlib.sha1()
-    with open(path, "rb") as specimen:
-        while chunk := specimen.read(chunksize):
-            sha1.update(chunk)
+    try:
+        with open(path, "rb") as specimen:
+            while chunk := specimen.read(chunksize):
+                sha1.update(chunk)
+    except PermissionError:
+        logger.warning(f"Permission denied for file: {path}")
     return sha1.hexdigest()
 
 
 def scan_file_for_malware(
-    chunksize: int, file: pathlib.Path, lib: list[Malware]
-) -> list[Malware]:
+    chunksize: int, file: pathlib.Path, lib: List[Malware]
+) -> List[Malware]:
     """
     Returning a list of Malware, because
     it could potentially happen (even if it should not),
@@ -436,17 +457,26 @@ def scan_file_for_malware(
     """
     matches = []
     crc32 = digest_file_crc32(chunksize, file)
+    logger.debug(f"File {file} calculated CRC32: {crc32}")
     sha1 = None
     for malware in lib:
         if malware.crc32 == crc32:
+            logger.debug(
+                f"File {file} CRC32 matches {malware.program} {malware.version}"
+            )
             if sha1 is None:
                 sha1 = digest_file_sha1(chunksize, file)
+                logger.debug(f"File {file} calculated SHA-1: {sha1}")
             if malware.sha1 == sha1:
                 matches.append(malware)
+            else:
+                logger.debug(
+                    f"File {file} SHA1 does not match {malware.program} {malware.version}"
+                )
     return matches
 
 
-def construct_malware_list(malware_yaml: dict) -> list[Malware]:
+def construct_malware_list(malware_yaml: dict) -> List[Malware]:
     """
     creates a flat list of malware objects, that hold all info
     The nested structure in yaml is for better optical structuring
@@ -497,17 +527,26 @@ class JWDGetter:
 
     # might deserve it's own function in galaxy_jwd.py
     def get_jwd_path(self, job: Job) -> str:
-        jwd = galaxy_jwd.decode_path(
-            job.galaxy_id,
-            [job.object_store_id],
-            self.backends,
-            job.runner_name,
-        )
-        return jwd
+        try:
+            return galaxy_jwd.decode_path(
+                job.galaxy_id,
+                [job.object_store_id],
+                self.backends,
+                job.runner_name,
+            )
+        except ValueError:
+            logger.warning(f"Job Working Directory not found for job {job}")
+            return ""
 
 
 class RunningJobDatabase(galaxy_jwd.Database):
-    def __init__(self, db_name: str, db_host=None, db_user=None, db_password=None):
+    def __init__(
+        self,
+        db_name: str,
+        db_host: str,
+        db_user: str,
+        db_password: str,
+    ):
         super().__init__(
             db_name,
             db_user,
@@ -515,7 +554,7 @@ class RunningJobDatabase(galaxy_jwd.Database):
             db_password,
         )
 
-    def get_running_jobs(self, tool: str) -> list[Job]:
+    def get_running_jobs(self, tool: str) -> List[Job]:
         query = """
                 SELECT j.user_id, u.username, u.email, j.tool_id, j.id,
                 j.job_runner_external_id, j.job_runner_name, j.object_store_id
@@ -535,8 +574,10 @@ class RunningJobDatabase(galaxy_jwd.Database):
         self.conn.close()
         # Create a dictionary with job_id as key and object_store_id, and
         # update_time as values
-        if not running_jobs:
-            logger.warning("No running jobs with tool_id like '%s' found.", tool)
+        if running_jobs:
+            logger.debug(f"Found {len(running_jobs)} running jobs matching '{tool}'")
+        else:
+            logger.debug(f"No running jobs with tool_id like {tool} found.")
             sys.exit(0)
         running_jobs_list = []
         for (
@@ -564,6 +605,36 @@ class RunningJobDatabase(galaxy_jwd.Database):
         return running_jobs_list
 
 
+def kill_job(job: Job):
+    """Attempt to kill a job by its galaxy_id using gxadmin."""
+    logger.info(f"Failing malicious job: {job.galaxy_id}")
+    serial_args = [
+        [
+            GXADMIN_PATH,
+            "mutate",
+            "fail-job",
+            str(job.galaxy_id),
+            "--commit",
+        ],
+        [
+            GXADMIN_PATH,
+            "mutate",
+            "fail-terminal-datasets",
+            "--commit",
+        ],
+    ]
+    for args in serial_args:
+        logger.debug(f"COMMAND: {' '.join(args)}")
+        try:
+            result = subprocess.run(args, check=True, capture_output=True, text=True)
+            if result.stdout:
+                logger.debug(f"COMMAND STDOUT:\n{result.stdout}")
+            if result.stderr:
+                logger.debug(f"COMMAND STDERR:\n{result.stderr}")
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Error failing job {job.galaxy_id}:\n{e}")
+
+
 def evaluate_match_for_deletion(
     job: Job,
     match: Malware,
@@ -571,7 +642,9 @@ def evaluate_match_for_deletion(
     severity: Severity,
 ) -> UserIdMail:
     """
-    If in verbose mode, print detailed information for every match. No updates on 'reported' needed.
+    Returns user's ID and mail as K/V pair, if the match's severity
+    is higher or equal to the severity specified in '--delete-user'.
+    E.g. HIGH > MEDIUM.
     """
     if job.user_id not in delete_users and (severity <= match.severity):
         return {job.user_id: job.user_mail}
@@ -750,6 +823,8 @@ def main():
                 reported_users.update(case.report_according_to_verbosity())
                 if args.delete_user:
                     delete_users.update(case.mark_user_for_deletion(args.delete_user))
+            if matching_malware and args.kill:
+                kill_job(job)
     # Deletes users at the end, to report all malicious jobs of a user
     if args.delete_user:
         api = GalaxyAPI(
