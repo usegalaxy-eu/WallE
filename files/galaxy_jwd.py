@@ -270,7 +270,9 @@ def get_object_store_conf_path(galaxy_config_file: pathlib.Path) -> pathlib.Path
     object_store_conf = ""
     with open(galaxy_config_file, "r") as config:
         galaxy_conf = yaml.safe_load(config)
-        object_store_conf = pathlib.Path(galaxy_conf.galaxy.galaxy_object_store_conf)
+        object_store_conf = pathlib.Path(
+            galaxy_conf["galaxy"]["object_store_config_file"]
+        )
         if not object_store_conf.is_file():
             raise ValueError(f"{object_store_conf} does not exist")
         else:
