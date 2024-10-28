@@ -7,7 +7,6 @@ days.
 
 import argparse
 import os
-from os.path import isfile
 import pathlib
 import shutil
 import sys
