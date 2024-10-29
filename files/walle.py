@@ -210,7 +210,9 @@ Use like 'grep' after the gxadmin query queue-details command.",
         help="Show table header.",
     )
     my_parser.add_argument(
-        "--slack-alerts", action="store_true", help=(
+        "--slack-alerts",
+        action="store_true",
+        help=(
             "Report matches to a Slack channel defined with env variables"
             " [SLACK_API_TOKEN, SLACK_CHANNEL_ID], where the Slack token"
             " authenticates a Slack App with permission to post in your"
@@ -819,9 +821,11 @@ def post_slack_msg(message):
     channel_id = os.getenv("SLACK_CHANNEL_ID")
 
     if not all([key, channel_id]):
-        logger.warning("Slack notifications cannot be sent. Make sure your"
-                       " playbook defines required vars:"
-                       " [walle_slack_api_token, walle_slack_channel_id].")
+        logger.warning(
+            "Slack notifications cannot be sent. Make sure your"
+            " playbook defines required vars:"
+            " [walle_slack_api_token, walle_slack_channel_id]."
+        )
         return
 
     logger.info(f"Posting incident report to Slack channel {channel_id}...")
@@ -832,7 +836,7 @@ def post_slack_msg(message):
             "channel": channel_id,
         },
         headers={
-            "Authorization": f'Bearer {key}',
+            "Authorization": f"Bearer {key}",
         },
     )
 
