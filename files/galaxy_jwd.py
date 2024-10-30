@@ -7,6 +7,7 @@ days.
 
 import argparse
 import os
+import pathlib
 import shutil
 import sys
 import textwrap
@@ -126,7 +127,7 @@ def main():
     args = parser.parse_args(args=None if sys.argv[1:] else ["--help"])
 
     # Check if environment variables are set
-    galaxy_config_file = get_env_or_error("GALAXY_CONFIG_FILE")
+    galaxy_config_file = pathlib.Path(get_env_or_error("GALAXY_CONFIG_FILE"))
     if not os.path.isfile(galaxy_config_file):
         raise ValueError(
             f"The given galaxy.yml file {galaxy_config_file} does not exist"
@@ -252,7 +253,7 @@ def extract_password_from_pgpass(pgpass_file: Union[str, Path]) -> str:
         )
 
 
-def get_object_store_conf_path(galaxy_config_file: Union[str, Path]) -> str:
+def get_object_store_conf_path(galaxy_config_file: pathlib.Path) -> pathlib.Path:
     """Get the path to the object_store_conf.xml file.
 
     Args:
@@ -267,21 +268,17 @@ def get_object_store_conf_path(galaxy_config_file: Union[str, Path]) -> str:
     """
     object_store_conf = ""
     with open(galaxy_config_file, "r") as config:
-        for line in config:
-            if line.strip().startswith("object_store_config_file"):
-                object_store_conf = line.split(":")[1].strip()
-
-                # Check if the object_store_conf.xml file exists
-                if not os.path.isfile(object_store_conf):
-                    raise ValueError(f"{object_store_conf} does not exist")
-
-                return object_store_conf
-            else:
-                raise ValueError(f"{object_store_conf} does not exist")
-        raise ValueError(f"Galaxy config is empty")
+        galaxy_conf = yaml.safe_load(config)
+        object_store_conf = pathlib.Path(
+            galaxy_conf["galaxy"]["object_store_config_file"]
+        )
+        if not object_store_conf.is_file():
+            raise ValueError(f"{object_store_conf} does not exist")
+        else:
+            return object_store_conf
 
 
-def parse_object_store(object_store_conf: str) -> dict:
+def parse_object_store(object_store_conf: pathlib.Path) -> dict:
     """Get the path of type 'job_work' from the extra_dir's for each backend.
 
     Args:
@@ -290,15 +287,15 @@ def parse_object_store(object_store_conf: str) -> dict:
     Returns:
         Dictionary of backend id and path of type 'job_work'.
     """
-    if object_store_conf.endswith(".xml"):
+    if object_store_conf.suffix == ".xml":
         return parse_object_store_xml(object_store_conf)
-    if object_store_conf.split(".")[-1] in ("yml", "yaml"):
+    if object_store_conf.suffix in ("yml", "yaml"):
         return parse_object_store_yaml(object_store_conf)
     raise ValueError("Invalid object store configuration file extension")
 
 
-def parse_object_store_xml(object_store_conf: str) -> dict:
-    dom = parse(object_store_conf)
+def parse_object_store_xml(object_store_conf: pathlib.Path) -> dict:
+    dom = parse(str(object_store_conf))
     backends = {}
     for backend in dom.getElementsByTagName("backend"):
         backend_id = backend.getAttribute("id")
@@ -310,7 +307,7 @@ def parse_object_store_xml(object_store_conf: str) -> dict:
     return backends
 
 
-def parse_object_store_yaml(object_store_conf: str) -> dict:
+def parse_object_store_yaml(object_store_conf: pathlib.Path) -> dict:
     with open(object_store_conf, "r") as f:
         data = yaml.safe_load(f)
     backends = {}
