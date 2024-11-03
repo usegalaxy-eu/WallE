@@ -61,6 +61,17 @@ walle_envs_user_deletion:
 walle_verbose: false
 walle_kill: false
 
+walle_slack_alerts: false
+walle_slack_api_token: null  # Make a "Slack app" to get a token
+walle_slack_channel_id: null  # Copy from your Slack channel settings
+walle_envs_slack:
+  - key: SLACK_API_TOKEN
+    value: "{{ walle_slack_api_token }}"
+  - key: SLACK_CHANNEL_ID
+    value: "{{ walle_slack_channel_id }}"
+  - key: WALLE_HOSTNAME
+    value: "{{ inventory_hostname }}"
+
 # Cron
 walle_cron_day: "*"
 walle_cron_hour: "*/1"
