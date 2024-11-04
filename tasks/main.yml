@@ -31,20 +31,16 @@
     path: "{{ walle_bashrc }}"
     state: touch
 
+- name: Extend walle_env_vars with user-defined walle_extra_env_vars
+  set_fact:
+    walle_env_vars: "{{ walle_env_vars | combine(walle_extra_env_vars) }}"
+
 - name: Add walle_env_vars to walle_bashrc
   ansible.builtin.lineinfile:
     path: "{{ walle_bashrc }}"
     regexp: "^export {{ item.key }}="
     line: 'export {{ item.key }}="{{ item.value }}"'
   with_items: "{{ walle_env_vars }}"
-
-- name: Extend walle_bashrc with user-defined walle_extra_env_vars
-  ansible.builtin.lineinfile:
-    path: "{{ walle_bashrc }}"
-    regexp: "^export {{ item.key }}="
-    line: 'export {{ item.key }}="{{ item.value }}"'
-  with_items: "{{ walle_extra_env_vars }}"
-  when: walle_extra_env_vars
 
 - name: Copy galaxy_jwd.py script to walle_script_location
   ansible.builtin.copy:
