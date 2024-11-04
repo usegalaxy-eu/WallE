@@ -31,20 +31,20 @@
     path: "{{ walle_bashrc }}"
     state: touch
 
-- name: Add env variables to WallE .bashrc
+- name: Add walle_env_vars to walle_bashrc
   ansible.builtin.lineinfile:
     path: "{{ walle_bashrc }}"
     regexp: "^export {{ item.key }}="
     line: 'export {{ item.key }}="{{ item.value }}"'
   with_items: "{{ walle_env_vars }}"
 
-- name: Add env variables for user deletion (WallE)
+- name: Extend walle_bashrc with user-defined walle_extra_env_vars
   ansible.builtin.lineinfile:
     path: "{{ walle_bashrc }}"
     regexp: "^export {{ item.key }}="
     line: 'export {{ item.key }}="{{ item.value }}"'
-  with_items: "{{ walle_envs_user_deletion }}"
-  when: walle_delete_users
+  with_items: "{{ walle_extra_env_vars }}"
+  when: walle_extra_env_vars
 
 - name: Copy galaxy_jwd.py script to walle_script_location
   ansible.builtin.copy:
@@ -53,14 +53,6 @@
     mode: 0755
     owner: "{{ walle_user_name }}"
     group: "{{ walle_user_group }}"
-
-- name: Add env variables for slack notifications (WallE)
-  ansible.builtin.lineinfile:
-    path: "{{ walle_bashrc }}"
-    regexp: "^export {{ item.key }}="
-    line: 'export {{ item.key }}="{{ item.value }}"'
-  with_items: "{{ walle_envs_slack }}"
-  when: walle_slack_alerts
 
 - name: Create logfile (WallE)
   ansible.builtin.file:
