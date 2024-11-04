@@ -40,7 +40,7 @@
     path: "{{ walle_bashrc }}"
     regexp: "^export {{ item.key }}="
     line: 'export {{ item.key }}="{{ item.value }}"'
-  with_items: "{{ walle_env_vars }}"
+  with_dict: "{{ walle_env_vars }}"
 
 - name: Copy galaxy_jwd.py script to walle_script_location
   ansible.builtin.copy:

@@ -33,6 +33,8 @@ walle_envs_database:
   GXADMIN_PATH: /usr/local/bin/gxadmin
 
 # delete users when malware was found and malware severity reached walle_delete_threshold
+walle_api_key: null  # admin api key to delete users, goes to VAULT
+walle_galaxy_url: null  # galaxy_hostname, no leading slash
 walle_delete_users: false
 walle_delete_threshold: medium
 walle_envs_user_deletion:
@@ -40,8 +42,6 @@ walle_envs_user_deletion:
   GALAXY_BASE_URL: "{{ walle_galaxy_url }}"
   # GALAXY_USER_DELETION_MESSAGE: "Your personalized message"
   # GALAXY_USER_DELETION_SUBJECT: "Your personalized subject line"
-# walle_api_key: #admin api key to delete users, goes to VAULT
-# walle_galaxy_url: #galaxy_hostname, no leading slash
 
 walle_slack_alerts: false
 walle_slack_api_token: null  # Make a "Slack app" to get a token
