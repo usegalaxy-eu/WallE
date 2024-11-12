@@ -117,7 +117,8 @@ class NotificationHistory:
                     f.write(f"{datestr}\t{jwd_path}\n")
 
     def contains(self, jwd: Union[pathlib.Path, str]) -> bool:
-        exists = str(jwd) in self._get_jwds()
+        jwd = str(jwd)
+        exists = jwd in self._get_jwds()
         if not exists:
             self._write_jwd(jwd)
         return exists
