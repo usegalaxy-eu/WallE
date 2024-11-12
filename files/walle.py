@@ -50,8 +50,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 GXADMIN_PATH = os.getenv("GXADMIN_PATH", "/usr/local/bin/gxadmin")
-NOTIFICATION_HISTORY_FILE = os.getenv("WALLE_NOTIFICATION_HISTORY_FILE",
-                                      "/tmp/walle-notifications.txt")
+NOTIFICATION_HISTORY_FILE = os.getenv(
+    "WALLE_NOTIFICATION_HISTORY_FILE", "/tmp/walle-notifications.txt"
+)
 
 
 def convert_arg_to_byte(mb: str) -> int:
@@ -72,16 +73,12 @@ class NotificationHistory:
         self._truncate_records()
 
     def _get_jwds(self) -> List[str]:
-        return [
-            line[1] for line in self._read_records()
-        ]
+        return [line[1] for line in self._read_records()]
 
     def _read_records(self) -> List[str]:
         with open(self.record_file, "r") as f:
             records = [
-                line.strip().split('\t')
-                for line in f.readlines()
-                if line.strip()
+                line.strip().split("\t") for line in f.readlines() if line.strip()
             ]
         return self._validate(records)
 
@@ -95,27 +92,27 @@ class NotificationHistory:
             logger.warning(
                 f"Invalid records found in {self.record_file}. The"
                 " file will be purged. This may result in duplicate Slack"
-                " notifications.")
+                " notifications."
+            )
             self._purge_records()
             return []
         return records
 
-    def _write_jwd(self, jwd: str):
+    def _write_jwd(self, jwd: str) -> None:
         with open(self.record_file, "a") as f:
             f.write(f"{datetime.now()}\t{jwd}\n")
 
-    def _purge_records(self):
+    def _purge_records(self) -> None:
         self.record_file.unlink()
         self.record_file.touch()
 
-    def _truncate_records(self):
+    def _truncate_records(self) -> None:
         """Truncate older records."""
         records = self._read_records()
         with open(self.record_file, "w") as f:
             for datestr, jwd_path in records:
-                if (
-                    datetime.fromisoformat(datestr)
-                    > datetime.now() - timedelta(days=SLACK_NOTIFY_PERIOD_DAYS)
+                if datetime.fromisoformat(datestr) > datetime.now() - timedelta(
+                    days=SLACK_NOTIFY_PERIOD_DAYS
                 ):
                     f.write(f"{datestr}\t{jwd_path}\n")
 
@@ -478,8 +475,7 @@ class Case:
 
     def post_slack_alert(self):
         if notification_history.contains(self.job.jwd):
-            logger.debug(
-                "Skipping Slack notification - already posted for this JWD")
+            logger.debug("Skipping Slack notification - already posted for this JWD")
             return
         msg = f"""
 :rotating_light: WALLE: *Malware detected* :rotating_light:
