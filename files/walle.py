@@ -17,7 +17,7 @@ import sys
 import time
 import zlib
 from datetime import datetime, timedelta
-from typing import Dict, List
+from typing import Dict, List, Union
 
 import galaxy_jwd
 import requests
@@ -75,7 +75,7 @@ class NotificationHistory:
     def _get_jwds(self) -> List[str]:
         return [line[1] for line in self._read_records()]
 
-    def _read_records(self) -> List[str]:
+    def _read_records(self) -> List[List[str]]:
         with open(self.record_file, "r") as f:
             records = [
                 line.strip().split("\t") for line in f.readlines() if line.strip()
@@ -116,7 +116,7 @@ class NotificationHistory:
                 ):
                     f.write(f"{datestr}\t{jwd_path}\n")
 
-    def contains(self, jwd: str) -> bool:
+    def contains(self, jwd: Union[pathlib.Path, str]) -> bool:
         exists = str(jwd) in self._get_jwds()
         if not exists:
             self._write_jwd(jwd)
