@@ -63,7 +63,9 @@ class NotificationRecord:
     """Record of Slack notifications to avoid spamming users."""
 
     def __init__(self, record_file: str) -> None:
-        self.record_file = record_file
+        self.record_file = pathlib.Path(record_file)
+        if not self.record_file.exists():
+            self.record_file.touch()
         self._truncate_records()
 
     def _get_jwds(self) -> List[str]:
