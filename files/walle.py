@@ -50,8 +50,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 GXADMIN_PATH = os.getenv("GXADMIN_PATH", "/usr/local/bin/gxadmin")
-NOTIFICATION_RECORD_FILE = os.getenv("WALLE_NOTIFICATION_RECORD_FILE",
-                                     "/tmp/walle-notifications.txt")
+NOTIFICATION_HISTORY_FILE = os.getenv("WALLE_NOTIFICATION_HISTORY_FILE",
+                                      "/tmp/walle-notifications.txt")
 
 
 def convert_arg_to_byte(mb: str) -> int:
@@ -62,7 +62,7 @@ def convert_arg_to_seconds(hours: str) -> float:
     return float(hours) * 60 * 60
 
 
-class NotificationRecord:
+class NotificationHistory:
     """Record of Slack notifications to avoid spamming users."""
 
     def __init__(self, record_file: str) -> None:
@@ -119,7 +119,7 @@ class NotificationRecord:
                 ):
                     f.write(f"{datestr}\t{jwd_path}\n")
 
-    def posted_for(self, jwd: str) -> bool:
+    def contains(self, jwd: str) -> bool:
         exists = str(jwd) in self._get_jwds()
         if not exists:
             self._write_jwd(jwd)
@@ -157,7 +157,7 @@ class Severity:
 
 
 VALID_SEVERITIES = (Severity(0, "LOW"), Severity(1, "MEDIUM"), Severity(2, "HIGH"))
-notification_record = NotificationRecord(NOTIFICATION_RECORD_FILE)
+notification_history = NotificationHistory(NOTIFICATION_HISTORY_FILE)
 
 
 def convert_str_to_severity(test_level: str) -> Severity:
@@ -477,7 +477,7 @@ class Case:
         )
 
     def post_slack_alert(self):
-        if notification_record.posted_for(self.job.jwd):
+        if notification_history.contains(self.job.jwd):
             logger.debug(
                 "Skipping Slack notification - already posted for this JWD")
             return
