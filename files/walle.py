@@ -34,6 +34,9 @@ However it is possible to restore the account and its data.
 If you think your account was deleted due to an error, please contact
 """
 ONLY_ONE_INSTANCE = "The other must be an instance of the Severity class"
+
+# Number of days before repeating slack alert for the same JWD
+SLACK_NOTIFY_PERIOD_DAYS = 7
 SLACK_URL = "https://slack.com/api/chat.postMessage"
 
 UserId = str
@@ -87,7 +90,7 @@ class NotificationRecord:
             for datestr, path in records:
                 if not isinstance(datestr, str) and isinstance(path, str):
                     raise ValueError
-                datetime.strptime(datestr, '%Y-%m-%d')
+                datetime.fromisoformat(datestr)
         except ValueError:
             logger.warning(
                 f"Invalid records found in {self.record_file}. The"
@@ -101,16 +104,26 @@ class NotificationRecord:
         with open(self.record_file, "a") as f:
             f.write(f"{datetime.now()}\t{jwd}\n")
 
+    def _purge_records(self):
+        self.record_file.unlink()
+        self.record_file.touch()
+
     def _truncate_records(self):
         """Truncate older records."""
         records = self._read_records()
         with open(self.record_file, "w") as f:
             for datestr, jwd_path in records:
-                if datetime.strptime(datestr, '%Y-%m-%d') > datetime.now() - timedelta(days=7):
+                if (
+                    datetime.fromisoformat(datestr)
+                    > datetime.now() - timedelta(days=SLACK_NOTIFY_PERIOD_DAYS)
+                ):
                     f.write(f"{datestr}\t{jwd_path}\n")
 
     def posted_for(self, jwd: str) -> bool:
-        return jwd in self._get_jwds()
+        exists = str(jwd) in self._get_jwds()
+        if not exists:
+            self._write_jwd(jwd)
+        return exists
 
 
 class Severity:
@@ -464,7 +477,7 @@ class Case:
         )
 
     def post_slack_alert(self):
-        if notification_record.posted_for(self.jb.jwd):
+        if notification_record.posted_for(self.job.jwd):
             logger.debug(
                 "Skipping Slack notification - already posted for this JWD")
             return
