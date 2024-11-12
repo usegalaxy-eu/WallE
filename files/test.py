@@ -9,7 +9,6 @@ SLACK_NOTIFY_PERIOD_DAYS = 7
 
 
 class TestNotificationHistory(unittest.TestCase):
-
     def setUp(self):
         self.temp_file = tempfile.NamedTemporaryFile(delete=False)
         self.record = NotificationHistory(self.temp_file.name)
