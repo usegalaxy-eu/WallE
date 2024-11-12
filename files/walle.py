@@ -16,6 +16,7 @@ import subprocess
 import sys
 import time
 import zlib
+from datetime import datetime, timedelta
 from typing import Dict, List
 
 import galaxy_jwd
@@ -46,6 +47,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 GXADMIN_PATH = os.getenv("GXADMIN_PATH", "/usr/local/bin/gxadmin")
+NOTIFICATION_RECORD_FILE = os.getenv("WALLE_NOTIFICATION_RECORD_FILE",
+                                     "/tmp/walle-notifications.txt")
 
 
 def convert_arg_to_byte(mb: str) -> int:
@@ -54,6 +57,58 @@ def convert_arg_to_byte(mb: str) -> int:
 
 def convert_arg_to_seconds(hours: str) -> float:
     return float(hours) * 60 * 60
+
+
+class NotificationRecord:
+    """Record of Slack notifications to avoid spamming users."""
+
+    def __init__(self, record_file: str) -> None:
+        self.record_file = record_file
+        self._truncate_records()
+
+    def _get_jwds(self) -> List[str]:
+        return [
+            line[1] for line in self._read_records()
+        ]
+
+    def _read_records(self) -> List[str]:
+        with open(self.record_file, "r") as f:
+            records = [
+                line.strip().split('\t')
+                for line in f.readlines()
+                if line.strip()
+            ]
+        return self._validate(records)
+
+    def _validate(self, records: List[List[str]]) -> List[List[str]]:
+        try:
+            for datestr, path in records:
+                if not isinstance(datestr, str) and isinstance(path, str):
+                    raise ValueError
+                datetime.strptime(datestr, '%Y-%m-%d')
+        except ValueError:
+            logger.warning(
+                f"Invalid records found in {self.record_file}. The"
+                " file will be purged. This may result in duplicate Slack"
+                " notifications.")
+            self._purge_records()
+            return []
+        return records
+
+    def _write_jwd(self, jwd: str):
+        with open(self.record_file, "a") as f:
+            f.write(f"{datetime.now()}\t{jwd}\n")
+
+    def _truncate_records(self):
+        """Truncate older records."""
+        records = self._read_records()
+        with open(self.record_file, "w") as f:
+            for datestr, jwd_path in records:
+                if datetime.strptime(datestr, '%Y-%m-%d') > datetime.now() - timedelta(days=7):
+                    f.write(f"{datestr}\t{jwd_path}\n")
+
+    def posted_for(self, jwd: str) -> bool:
+        return jwd in self._get_jwds()
 
 
 class Severity:
@@ -87,6 +142,7 @@ class Severity:
 
 
 VALID_SEVERITIES = (Severity(0, "LOW"), Severity(1, "MEDIUM"), Severity(2, "HIGH"))
+notification_record = NotificationRecord(NOTIFICATION_RECORD_FILE)
 
 
 def convert_str_to_severity(test_level: str) -> Severity:
@@ -406,6 +462,10 @@ class Case:
         )
 
     def post_slack_alert(self):
+        if notification_record.posted_for(self.jb.jwd):
+            logger.debug(
+                "Skipping Slack notification - already posted for this JWD")
+            return
         msg = f"""
 :rotating_light: WALLE: *Malware detected* :rotating_light:
 
