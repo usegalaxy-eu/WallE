@@ -86,7 +86,7 @@ class NotificationHistory:
             self.record_file.touch()
         self._truncate_records()
 
-    def _get_jwds(self) -> Record:
+    def _get_jwds(self) -> List[str]:
         return [record.jwd for record in self._read_records()]
 
     def _read_records(self) -> List[Record]:
