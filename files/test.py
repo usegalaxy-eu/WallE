@@ -25,8 +25,7 @@ class TestNotificationHistory(unittest.TestCase):
 
     def test_contains_existing_entry(self):
         jwd = "existing_id"
-        with open(self.temp_file.name, "a") as f:
-            f.write(f"{datetime.now()}\t{jwd}\n")
+        self.record._write_record(jwd)
         self.assertTrue(self.record.contains(jwd), "Existing entry should return True")
 
     @patch("walle.SLACK_NOTIFY_PERIOD_DAYS", new=SLACK_NOTIFY_PERIOD_DAYS)

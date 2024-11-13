@@ -16,6 +16,7 @@ import subprocess
 import sys
 import time
 import zlib
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Dict, List, Union
 
@@ -63,6 +64,19 @@ def convert_arg_to_seconds(hours: str) -> float:
     return float(hours) * 60 * 60
 
 
+@dataclass
+class Record:
+    date: str
+    jwd: Union[str, pathlib.Path]
+
+    def __post_init__(self):
+        if not (
+            isinstance(self.date, str) and isinstance(self.jwd, (str, pathlib.Path))
+        ):
+            raise ValueError
+        datetime.fromisoformat(self.date)  # will raise ValueError if invalid
+
+
 class NotificationHistory:
     """Record of Slack notifications to avoid spamming users."""
 
@@ -72,22 +86,17 @@ class NotificationHistory:
             self.record_file.touch()
         self._truncate_records()
 
-    def _get_jwds(self) -> List[str]:
-        return [line[1] for line in self._read_records()]
+    def _get_jwds(self) -> Record:
+        return [record.jwd for record in self._read_records()]
 
-    def _read_records(self) -> List[List[str]]:
-        with open(self.record_file, "r") as f:
-            records = [
-                line.strip().split("\t") for line in f.readlines() if line.strip()
-            ]
-        return self._validate(records)
-
-    def _validate(self, records: List[List[str]]) -> List[List[str]]:
+    def _read_records(self) -> List[Record]:
         try:
-            for datestr, path in records:
-                if not isinstance(datestr, str) and isinstance(path, str):
-                    raise ValueError
-                datetime.fromisoformat(datestr)
+            with open(self.record_file, "r") as f:
+                records = [
+                    Record(*line.strip().split("\t"))
+                    for line in f.readlines()
+                    if line.strip()
+                ]
         except ValueError:
             logger.warning(
                 f"Invalid records found in {self.record_file}. The"
@@ -98,7 +107,7 @@ class NotificationHistory:
             return []
         return records
 
-    def _write_jwd(self, jwd: str) -> None:
+    def _write_record(self, jwd: str) -> None:
         with open(self.record_file, "a") as f:
             f.write(f"{datetime.now()}\t{jwd}\n")
 
@@ -110,17 +119,17 @@ class NotificationHistory:
         """Truncate older records."""
         records = self._read_records()
         with open(self.record_file, "w") as f:
-            for datestr, jwd_path in records:
-                if datetime.fromisoformat(datestr) > datetime.now() - timedelta(
+            for record in records:
+                if datetime.fromisoformat(record.date) > datetime.now() - timedelta(
                     days=SLACK_NOTIFY_PERIOD_DAYS
                 ):
-                    f.write(f"{datestr}\t{jwd_path}\n")
+                    f.write(f"{record.date}\t{record.jwd}\n")
 
     def contains(self, jwd: Union[pathlib.Path, str]) -> bool:
         jwd = str(jwd)
         exists = jwd in self._get_jwds()
         if not exists:
-            self._write_jwd(jwd)
+            self._write_record(jwd)
         return exists
 
 
