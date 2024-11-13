@@ -67,13 +67,14 @@ def convert_arg_to_seconds(hours: str) -> float:
 @dataclass
 class Record:
     date: str
-    jwd: Union[str, pathlib.Path]
+    jwd: str
 
     def __post_init__(self):
         if not (
             isinstance(self.date, str) and isinstance(self.jwd, (str, pathlib.Path))
         ):
             raise ValueError
+        self.jwd = str(self.jwd)
         datetime.fromisoformat(self.date)  # will raise ValueError if invalid
 
 
