@@ -16,7 +16,9 @@ import subprocess
 import sys
 import time
 import zlib
-from typing import Dict, List
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from typing import Dict, List, Union
 
 import galaxy_jwd
 import requests
@@ -33,6 +35,9 @@ However it is possible to restore the account and its data.
 If you think your account was deleted due to an error, please contact
 """
 ONLY_ONE_INSTANCE = "The other must be an instance of the Severity class"
+
+# Number of days before repeating slack alert for the same JWD
+SLACK_NOTIFY_PERIOD_DAYS = 7
 SLACK_URL = "https://slack.com/api/chat.postMessage"
 
 UserId = str
@@ -46,6 +51,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 GXADMIN_PATH = os.getenv("GXADMIN_PATH", "/usr/local/bin/gxadmin")
+NOTIFICATION_HISTORY_FILE = os.getenv(
+    "WALLE_NOTIFICATION_HISTORY_FILE", "/tmp/walle-notifications.txt"
+)
 
 
 def convert_arg_to_byte(mb: str) -> int:
@@ -54,6 +62,76 @@ def convert_arg_to_byte(mb: str) -> int:
 
 def convert_arg_to_seconds(hours: str) -> float:
     return float(hours) * 60 * 60
+
+
+@dataclass
+class Record:
+    date: str
+    jwd: str
+
+    def __post_init__(self):
+        if not (
+            isinstance(self.date, str) and isinstance(self.jwd, (str, pathlib.Path))
+        ):
+            raise ValueError
+        self.jwd = str(self.jwd)
+        datetime.fromisoformat(self.date)  # will raise ValueError if invalid
+
+
+class NotificationHistory:
+    """Record of Slack notifications to avoid spamming users."""
+
+    def __init__(self, record_file: str) -> None:
+        self.record_file = pathlib.Path(record_file)
+        if not self.record_file.exists():
+            self.record_file.touch()
+        self._truncate_records()
+
+    def _get_jwds(self) -> List[str]:
+        return [record.jwd for record in self._read_records()]
+
+    def _read_records(self) -> List[Record]:
+        try:
+            with open(self.record_file, "r") as f:
+                records = [
+                    Record(*line.strip().split("\t"))
+                    for line in f.readlines()
+                    if line.strip()
+                ]
+        except ValueError:
+            logger.warning(
+                f"Invalid records found in {self.record_file}. The"
+                " file will be purged. This may result in duplicate Slack"
+                " notifications."
+            )
+            self._purge_records()
+            return []
+        return records
+
+    def _write_record(self, jwd: str) -> None:
+        with open(self.record_file, "a") as f:
+            f.write(f"{datetime.now()}\t{jwd}\n")
+
+    def _purge_records(self) -> None:
+        self.record_file.unlink()
+        self.record_file.touch()
+
+    def _truncate_records(self) -> None:
+        """Truncate older records."""
+        records = self._read_records()
+        with open(self.record_file, "w") as f:
+            for record in records:
+                if datetime.fromisoformat(record.date) > datetime.now() - timedelta(
+                    days=SLACK_NOTIFY_PERIOD_DAYS
+                ):
+                    f.write(f"{record.date}\t{record.jwd}\n")
+
+    def contains(self, jwd: Union[pathlib.Path, str]) -> bool:
+        jwd = str(jwd)
+        exists = jwd in self._get_jwds()
+        if not exists:
+            self._write_record(jwd)
+        return exists
 
 
 class Severity:
@@ -87,6 +165,7 @@ class Severity:
 
 
 VALID_SEVERITIES = (Severity(0, "LOW"), Severity(1, "MEDIUM"), Severity(2, "HIGH"))
+notification_history = NotificationHistory(NOTIFICATION_HISTORY_FILE)
 
 
 def convert_str_to_severity(test_level: str) -> Severity:
@@ -406,6 +485,9 @@ class Case:
         )
 
     def post_slack_alert(self):
+        if notification_history.contains(self.job.jwd):
+            logger.debug("Skipping Slack notification - already posted for this JWD")
+            return
         msg = f"""
 :rotating_light: WALLE: *Malware detected* :rotating_light:
 
