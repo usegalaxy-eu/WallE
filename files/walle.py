@@ -821,7 +821,7 @@ class GalaxyAPI:
                     "role_ids": [],
                 },
                 "notification": {
-                    "source": "string",
+                    "source": "WALLE",
                     "category": "message",
                     "variant": "urgent",
                     "content": {
@@ -833,8 +833,7 @@ class GalaxyAPI:
             },
         )
         if response.status_code == 200:
-            if response.json()["total_notifications_sent"] == 1:
-                return True
+            return True
         logger.error(
             "Can not notify user %s, response from Galaxy: %s",
             encoded_user_id,
