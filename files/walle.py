@@ -821,7 +821,7 @@ class GalaxyAPI:
                     "role_ids": [],
                 },
                 "notification": {
-                    "source": "string",
+                    "source": "WALLE",
                     "category": "message",
                     "variant": "urgent",
                     "content": {

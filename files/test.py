@@ -98,7 +98,7 @@ class TestGalaxyAPI(unittest.TestCase):
         expected_json = {
             "recipients": {"user_ids": ["encoded123"], "group_ids": [], "role_ids": []},
             "notification": {
-                "source": "string",
+                "source": "WALLE",
                 "category": "message",
                 "variant": "urgent",
                 "content": {
