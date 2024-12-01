@@ -289,7 +289,7 @@ def parse_object_store(object_store_conf: pathlib.Path) -> dict:
     """
     if object_store_conf.suffix == ".xml":
         return parse_object_store_xml(object_store_conf)
-    if object_store_conf.suffix in ("yml", "yaml"):
+    if object_store_conf.suffix in (".yml", ".yaml"):
         return parse_object_store_yaml(object_store_conf)
     raise ValueError("Invalid object store configuration file extension")
 
