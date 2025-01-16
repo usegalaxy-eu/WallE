@@ -398,7 +398,7 @@ def decode_path(
     ):
         return jwd_path
     else:
-        raise ValueError("Unabale to fetch Job Working Directory for job with ID {job}")
+        raise ValueError(f"Unable to fetch Job Working Directory for job with ID {job_id}")
 
 
 def delete_jwd(jwd_path: str) -> None:
