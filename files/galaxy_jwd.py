@@ -402,6 +402,7 @@ def decode_path(
             f"Unable to fetch Job Working Directory for job with ID {job_id}"
         )
 
+
 def delete_jwd(jwd_path: str) -> None:
     """Delete JWD folder and all its contents.
 
